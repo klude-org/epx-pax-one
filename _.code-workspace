@@ -1,9 +1,5 @@
 {
-	"folders": [
-		{
-			"name": "--site--",
-			"path": "./src"
-		},		
+	"folders": [	
 		{
 			"name": "--project--",
 			"path": "."

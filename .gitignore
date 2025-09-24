@@ -13,3 +13,7 @@
 # all questionable development can be done in .local and then put into modules as required
 **/.local
 **/.local-*
+
+
+/.plugins
+/vendor
