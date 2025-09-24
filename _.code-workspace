@@ -10,7 +10,7 @@
 		}
 	],
 	"settings": {
-		"window.title": "[ klude-org--epx-pax-one ] / ${folderName} ",
+		"window.title": "[ epx-pax-one ] / ${folderName} ",
 		"workbench.colorCustomizations": {
 			"sideBar.background": "#202733",
 			"settings.headerBorder": "#d68b8b",
