@@ -575,6 +575,7 @@ namespace {(function(){
         })();
     })($f);    
     
+    $intfc = \_\INTFC;
     $lcl__ft = \is_file($f = $lcl__f = \_\SITE_DIR."/.local/.cache-config-{$intfc}.php") ? \filemtime($f) : 0;
     $cfg__ft = \is_file($f = $cfg__f = \_\SITE_DIR."/.config.php") ? \filemtime($f) : 0;
     $ifc__ft = \is_file($f = $ifc__f = \_\SITE_DIR."/.config-{$intfc}.php") ? \filemtime($f) : 0;
@@ -753,6 +754,7 @@ namespace {(function(){
         # {$trace}
         # {$stamp}
         PHP;
+        \is_dir($d = \dirname($lcl__f)) OR \mkdir($d,0777,true);
         \file_put_contents(
             $lcl__f, 
             $contents,

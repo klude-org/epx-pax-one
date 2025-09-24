@@ -43,12 +43,85 @@ namespace _ { return (function(){
     \define('_\START_FILE', \str_replace('\\','/', __FILE__));
     \define('_\START_DIR', \dirname(\_\START_FILE));
     
-    $_ENV['BOOT'] ??= "v250925_01";
-    if(!\is_file($localfile = \_\START_DIR."/".($file = \str_replace('\\','/','boot/'.$_ENV['BOOT']).'/.boot.php'))){
-        empty($_SERVER['HTTP_HOST']) OR \http_response_code(500);
-        echo "500: Failed to locate boot: {$_ENV['BOOT']}".PHP_EOL;
-        exit();
+    1 AND \ini_set('display_errors', 0);
+    1 AND \ini_set('display_startup_errors', 1);
+    1 AND \ini_set('error_reporting', E_ALL);
+    0 AND \error_reporting(E_ALL);
+
+    $fault__fn = function($ex = null){
+        $intfc = (\defined('_\INTFC') ? \_\INTFC : null)
+            ?? $GLOBALS['INTFC']
+            ?? (empty($_SERVER['HTTP_HOST']) 
+                ? 'cli'
+                : $_SERVER['HTTP_X_REQUEST_INTERFACE'] ?? 'web'
+            )
+        ;
+        switch($intfc){
+            case 'cli':{
+                echo "\033[91m\n"
+                    .$ex::class.": {$ex->getMessage()}\n"
+                    ."File: {$ex->getFile()}\n"
+                    ."Line: {$ex->getLine()}\n"
+                    ."\033[31m{$ex}\033[0m\n"
+                ;
+                exit(1);
+            } break;
+            case 'web':{
+                \http_response_code(500);
+                while(\ob_get_level() > \_\OB_OUT){ @\ob_end_clean(); }
+                \defined('_\SIG_ABORT') OR \define('_\SIG_ABORT', -1);
+                echo <<<HTML
+                    <style>
+                        body{ background-color: #121212; color: #e0e0e0; font-family: sans-serif; margin: 0; padding: 20px;}
+                        pre{ overflow:auto; color:red;border:1px solid red;padding:5px; background-color: #1e1e1e; max-height: calc(100vh-25px); }
+                        /* Scrollbar styles for WebKit (Chrome, Edge, Safari) */
+                        ::-webkit-scrollbar { width: 12px; height: 12px;}
+                        ::-webkit-scrollbar-track { background: #1e1e1e; }
+                        ::-webkit-scrollbar-thumb { background-color: #555; border-radius: 6px; border: 2px solid #1e1e1e; }
+                        ::-webkit-scrollbar-thumb:hover { background-color: #777; }
+                        /* Firefox scrollbar (limited support) */
+                        * { scrollbar-width: thin; scrollbar-color: #555 #1e1e1e;}
+                    </style>
+                    <pre>{$ex}</pre>
+                HTML;
+                exit(1);
+            } break;
+            default:{
+                \http_response_code(500);
+                while(\ob_get_level() > \_\OB_OUT){ @\ob_end_clean(); }
+                \defined('_\SIG_ABORT') OR \define('_\SIG_ABORT', -1);
+                \header('Content-Type: application/json');
+                echo \json_encode([
+                    'status' => "error",
+                    'message' => $ex->getMessage(),
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                exit(1);
+            } break;
+        }
     };
+    \set_exception_handler(function($ex) use($fault__fn){
+        $fault__fn($ex);
+    });
+    \set_error_handler(function($severity, $message, $file, $line) use($fault__fn){
+        try{
+            throw new \ErrorException(
+                $message, 
+                0,
+                $severity, 
+                $file, 
+                $line
+            );
+        } catch(\Throwable $ex) {
+            $fault__fn($ex);
+        }
+    });
+    
+    $BOOT = $_['BOOT'] ?? "v250925_01";
+    if(!\is_file($localfile = \_\START_DIR."/".($file = \str_replace('\\','/','boot/'.$BOOT).'/.boot.php'))){
+        empty($_SERVER['HTTP_HOST']) OR \http_response_code(500);
+        echo "500: Failed to locate boot: {$BOOT}".PHP_EOL;
+        exit();
+    }
     
     return include $localfile;
     
