@@ -437,12 +437,12 @@
         <div class="xui-studio xui-sidebar-left" style="overflow-x:hidden">
             <div class="xui-sb-resizer" aria-hidden="true"></div>
             <div class="xui-sidenav-header">
-                <a href="<?=\_\BASE_URL?>"><?=$_ENV['html']['page']['title'] ?? null ?: 'Untitled'?></a>
+                <a style="color:white" href="<?=\_\BASE_URL?>"><?=$_ENV['html']['page']['title'] ?? null ?: 'Untitled'?></a>
             </div>
             <div class="xui-sidenav-left xui-url_tree flex-fill">
                 <?php 
                     //$sidenav->tree_head(['name' => 'setup', 'url' => \_\BASE_URL,]);
-                    \_\nav\url_tree::_()->render(function($v, $k, $i){
+                    \_\nav\url_tree::_($_ENV['html']['url_tree']['panel'] ?? null)->render(function($v, $k, $i){
                         if($v){
                             ?><a class="link" href="#<?=$v?>" title="<?=$k?>&#013;<?=$v?>"><?=$k?></a><?php
                         } else {

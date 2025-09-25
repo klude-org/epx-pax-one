@@ -12,6 +12,7 @@ class view {
     public ?view $inner = null;
     public string $inset = '';
     public array $params = [];
+    public mixed $o;
 
     public static function _($expr = null){ 
         return new static($expr, false);
@@ -85,6 +86,11 @@ class view {
         return $this;
     }
 
+    public function o($o){
+        $this->o = $o;
+        return $this;
+    }
+    
     
     public function __invoke($return = false){
         $output = '';

@@ -613,6 +613,42 @@ namespace _ { if(!\function_exists(redirect::class)){ function redirect(bool|str
 }}}
 #endregion
 # ######################################################################################################################
+#region DOWNLOAD
+namespace _ { if(!\function_exists(download::class)){ function download($file, array $options = []){
+    $headers = null;
+    $download_name = false;
+    \extract($options);
+    if(!file_exists($file)){
+        \http_response_code(404); exit('{ "status":"error", "info":"Not Found" }');
+    } else {
+        if(!$headers){
+            if($download_name === false){
+                $download_name = \basename($file);
+            } else if($download_name === true){
+                $fname = pathinfo($file, PATHINFO_FILENAME);
+                $download_name = \str_replace('/','-','download-'.date('Y-md-Hi-s')."-{$fname}");
+            } else if(\is_string($download_name)){
+                
+            }
+            $headers = [
+                "Content-Type: application/octet-stream",
+                "Content-Transfer-Encoding: Binary", 
+                "Content-disposition: attachment; filename=\"".$download_name."\"",
+                "Content-length:".(string)(filesize($file)),
+            ];
+        }
+        try {
+            foreach($headers as $h){
+                header($h);
+            }
+            readfile($file);
+        } finally {
+            exit();
+        }
+    }
+}}}
+#endregion
+# ######################################################################################################################
 #region DOB
 namespace _ { if(!\function_exists(dob::class)){ function dob(string $path, array $options = []){
     if(array_key_exists('value', $options)){
@@ -695,71 +731,88 @@ namespace _\dob { if(!\function_exists(json::class)){ function json(string $path
 #endregion
 # ######################################################################################################################
 #region Data db
-namespace _ { if(!\function_exists(db::class)){ function db() {
-    static $I; return $I ?? ($I = new class () extends \stdClass{
-        public readonly ?\PDO $pdo;
-        public function __construct(){
-            if($database = \_\e('DB_DATABASE')){
-                $hostname = \_\e('DB_HOSTNAME') ?? 'localhost';
-                $database = \_\e('DB_DATABASE') ?? 'unknown_db';
-                $username = \_\e('DB_USERNAME') ?? 'root';
-                $password = \_\e('DB_PASSWORD') ?? 'pass';
-                $charset  = \_\e('DB_CHAR_SET') ?? 'utf8mb4';
-                $this->database = $database;
-                try {
-                    $this->pdo = new \PDO(
-                        "mysql:host={$hostname};dbname={$this->database};charset={$charset}",
-                        $username,
-                        $password,
-                        [
-                            \PDO::ATTR_ERRMODE            => \PDO::ERRMODE_EXCEPTION,
-                            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC, 
-                            \PDO::ATTR_EMULATE_PREPARES   => false,
-                        ]
-                    );
-                } catch (\PDOException $e) {
-                    throw new \PDOException($e->getMessage(), (int)$e->getCode());
+namespace _ { if(!\function_exists(db::class)){ function db($table_name = null) {
+    if(!$table_name){
+        static $I; return $I ?? ($I = new class () extends \stdClass{
+            public readonly ?\PDO $pdo;
+            public readonly string $database;
+            private $last_query;
+            
+            public function __construct(){
+                if($database = \_\e('DB_DATABASE')){
+                    $hostname = \_\e('DB_HOSTNAME') ?? 'localhost';
+                    $database = \_\e('DB_DATABASE') ?? 'unknown_db';
+                    $username = \_\e('DB_USERNAME') ?? 'root';
+                    $password = \_\e('DB_PASSWORD') ?? 'pass';
+                    $charset  = \_\e('DB_CHAR_SET') ?? 'utf8mb4';
+                    $this->database = $database;
+                    try {
+                        $this->pdo = new \PDO(
+                            "mysql:host={$hostname};dbname={$this->database};charset={$charset}",
+                            $username,
+                            $password,
+                            [
+                                \PDO::ATTR_ERRMODE            => \PDO::ERRMODE_EXCEPTION,
+                                \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC, 
+                                \PDO::ATTR_EMULATE_PREPARES   => false,
+                            ]
+                        );
+                    } catch (\PDOException $e) {
+                        throw new \PDOException($e->getMessage(), (int)$e->getCode());
+                    }
+                } else {
+                    $this->pdo = null;
                 }
-            } else {
-                $this->pdo = null;
             }
-        }
-        
-        public function is_connected() : bool {
-            return ($this->pdo ?? null) ? true : false;
-        }
-        
-        public function __call($method,$args){
-            return $this->pdo?->$method(...$args);
-        }
-        
-        public function table__list(){
-            $query = "SHOW TABLES";
-            if($stmt = $this->pdo?->query($query)){
-                return $stmt->fetchAll(\PDO::FETCH_COLUMN);
+            
+            public function connect(){
+                try{
+                    $this->last_error_message = null;
+                    if($this->pdo()){
+                        return true;
+                    }
+                } catch (\PDOException $ex){
+                    $this->last_error_message = $ex->getMessage();
+                }
+                return false;
             }
-        }
-        
-        public function table_column__list($table) {
-            if($stmt = $this->pdo?->query("SHOW COLUMNS FROM `$table`")){
-                return $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+            public function is_connected() : bool {
+                return ($this->pdo ?? null) ? true : false;
             }
-        }
-    });
-}}}
-#endregion
-# ######################################################################################################################
-#region Data D
-namespace _ { if(!\function_exists(d::class)){ function d($path = null, $id = null, array $params = []){
-    static $I; return ($I ?? $I = (function($path = null, $id = null, array $params = []){
-        if(!($this->i ?? null)){
-            $this->i = (object)[];   
-            $this->i->LAST_QUERY = null;
-            $this->i->TABLES = [];
-            $this->i->PDO = null;
-            $this->i->pdo_write__fn = function($sql, $data) {
+            
+            public function database_name(){
+                return \_\e('DB_DATABASE');
+            }
+
+            public function __call($name, $args){
+                if(\method_exists($this->pdo ?? $this->pdo(),$name)){
+                    return $this->pdo->$name(...$args);
+                } else {
+                    throw new \Exception("Method Not Found '{$name}'");
+                }
+            }
+            
+            public function table__list(){
+                $query = "SHOW TABLES";
+                if($stmt = $this->pdo?->query($query)){
+                    return $stmt->fetchAll(\PDO::FETCH_COLUMN);
+                }
+            }
+            
+            public function table_column__list($table) {
+                if($stmt = $this->pdo?->query("SHOW COLUMNS FROM `$table`")){
+                    return $stmt->fetchAll(\PDO::FETCH_COLUMN);
+                }
+            }
+            
+            public function last_query(){
+                return $this->LAST_QUERY;
+            }
+            
+            public function execute($sql, $data) {
                 //! credits: https://stackoverflow.com/a/7716896/10753162
-                $this->i->LAST_QUERY = \preg_replace_callback('/:([0-9a-z_]+)/i', function($m) use(&$data){
+                $this->LAST_QUERY = \preg_replace_callback('/:([0-9a-z_]+)/i', function($m) use(&$data){
                     $v = $data[$m[1]];
                     if ($v === null) {
                         return "NULL";
@@ -769,435 +822,440 @@ namespace _ { if(!\function_exists(d::class)){ function d($path = null, $id = nu
                     }
                     return "'". $v ."'";
                 }, $sql);
-                return $this->i->PDO->prepare($sql)->execute($data);
-            };
-            $this->i->table_info__fn = function($tblp) {
-                if($x = $this->i->PDO->query("SHOW KEYS FROM `{$tblp}` WHERE Key_name = 'PRIMARY'")->fetch()){
-                    $this->i->TABLES[$tblp]['idk'] = $x['Column_name'];
-                }
-                $fields = $this->i->PDO->query("DESCRIBE `{$tblp}`")->fetchAll(\PDO::FETCH_COLUMN);
-                $this->i->TABLES[$tblp]['fields'] = \array_flip($fields);
-                return $this->i->TABLES[$tblp];
-            };
-            $this->i->e__fn = function($k){
-                global $_;
-                $n = "FW_{$k}";
-                return $_[$k]
-                    ?? (\defined($n) ? \constant($n) : null)
-                    ?? ((($r = getenv($n)) !== false) ? $r : null)
-                    ?? $_SERVER[$n]
-                    ?? $_SERVER["REDIRECT_{$n}"]
-                    ?? null
-                ;
-            };
-            if(\is_null($this->i->PDO)){
-                $hostname = $_ENV['DB_HOSTNAME'] ?? 'localhost';
-                $database = $_ENV['DB_DATABASE'] ?? '';
-                $char_set = $_ENV['DB_CHAR_SET'] ?? 'utf8mb4';
-                $username = $_ENV['DB_USERNAME'] ?? 'root';
-                $password = $_ENV['DB_PASSWORD'] ?? '';
-                if($database){
-                    try {
-                        $this->i->PDO = new \PDO(
-                            "mysql:host={$hostname};dbname={$database};charset={$char_set}", 
-                            $username,
-                            $password,
-                            [
-                                \PDO::ATTR_ERRMODE            => \PDO::ERRMODE_EXCEPTION,
-                                \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-                                \PDO::ATTR_EMULATE_PREPARES   => false,
-                            ]
-                        );
-                    } catch (\PDOException $e) {
-                        throw new \PDOException($e->getMessage(), (int)$e->getCode());
-                    }
-                    foreach($this->i->PDO->query('SHOW TABLES')->fetchAll(\PDO::FETCH_COLUMN) as $tblp){
-                        $this->i->TABLES[$tblp] = [];
+                return $this->pdo->prepare($sql)->execute($data);
+            }
+            
+        });
+    } else {
+        static $T = []; return $I[$table_name] ?? ($I[$table_name] = new class ($table_name) extends \stdClass implements \ArrayAccess {
+
+            public readonly string $TBLP;
+            public readonly ?array $FIELDS;
+            public readonly ?string $IDK;
+            public readonly ?string $DIR;
+            public readonly object $DB;
+            private string $last_insert_id;
+            
+            public function __construct($tblp){
+                $this->TBLP = $tblp;
+                $this->DB = \_\db();
+                $this->DIR = \_\DATA_DIR."/0/{$tblp}";
+                if($stmt = $this->DB->query("SHOW COLUMNS FROM `$tblp`")){
+                    $this->FIELDS = \array_flip($stmt->fetchAll(\PDO::FETCH_COLUMN));
+                    if($x = $this->DB->query("SHOW KEYS FROM `{$this->TBLP}` WHERE Key_name = 'PRIMARY'")->fetch()){
+                        $this->IDK = $x['Column_name'];
                     }
                 } else {
-                    $POD = false;
+                    $this->FIELDS = null;
+                    $this->IDK = null;
                 }
-            }                
-        }
-        if(!$path){
-            return $this->i->PDO;
-        }
-        $tblp = \str_replace('\\','/',$path);
-        if($tblp === '.'){
-            if(\is_scalar($id)){
-                return match($id){
-                    'pdo' => $this->i->PDO,
-                    'tables' => $this->i->TABLES,
-                };
-            } else {
-                return null;
             }
-        } else if(\is_scalar($id)){
-            if(\is_string($params)){
-                switch($params){
-                    case 'delete':{ 
-                        if(!$is_new){
-                            $frec = \_\DATA_DIR."/0/{$tblp}/@{$id}/.$-json";
-                            $drec = \dirname($frec);
-                            if(\is_file($frec)){
-                                \unlink($frec);
-                            }
-                            if(\is_dir($drec)){
-                                foreach (
-                                    new \RecursiveIteratorIterator(
-                                        new \RecursiveDirectoryIterator($drec, \RecursiveDirectoryIterator::SKIP_DOTS),
-                                        \RecursiveIteratorIterator::CHILD_FIRST
-                                    ) as $x
-                                ){
-                                    $x->isDir() 
-                                        ? \rmdir($x->getRealPath()) 
-                                        : \unlink($x->getRealPath())
-                                    ;
-                                }
-                                \rmdir($drec);
-                            }
-                            if($this->i->PDO && isset($this->i->TABLES[$tblp])){
-                                $this->i->PDO->exec("DELETE FROM `{$tblp}` WHERE `id`='{$id}'");                     
-                            }
-                        }
-                    } break;
-                }
-            } else if(\is_array($params)){
-                $p__overwrite = false;
-                $p__write = null;
-                $params && \extract($params, EXTR_OVERWRITE | EXTR_PREFIX_ALL, 'p_');
-                $is_new = ($id == '+' || (\is_int($id) && $id < 0) || $id == '');
-                $this->i->PDO 
-                    AND isset($this->i->TABLES[$tblp]) 
-                    AND !$this->i->TABLES[$tblp] 
-                    AND ($this->i->table_info__fn)($tblp)
-                ;
-                if(\is_array($write = $p__write)) {
-                    $files = $write['/'] ?? [];
-                    $fsdob = $write['-'] ?? [];
-                    unset($write['-'],$write['/']);
-                    if(!\is_null($dbdob = ($this->i->PDO && isset($this->i->TABLES[$tblp])) ? [] : null)){
-                        foreach($write as $k => $v){
-                            if(isset($this->i->TABLES[$tblp]['fields'][$k])){
-                                $dbdob[$k] = $v;
-                            }
+            
+            public function offsetSet($n, $v):void { 
+                $this->row__set($n, $v);
+            }
+            
+            public function offsetExists($n):bool { 
+                return $this->row__isset($n);
+            }
+            
+            public function offsetUnset($n):void {
+                $this->row__isset($n); 
+            }
+            
+            public function offsetGet($n):mixed { 
+                return $this->row__get($n); 
+            }
+            
+            public static function id_is_new($id){
+                return ($id == '+' || (\is_int($id) && $id < 0) || $id == '');
+            }
+            
+            public function last_insert_id(){
+                return $this->last_insert_id;
+            }
+            
+            public function row__set(string $id, array $write, bool $overwrite = false){
+                $tblp = $this->TBLP;
+                $idk = $this->IDK;
+                $files = $write['/'] ?? [];
+                $fsdob = $write['-'] ?? [];
+                $dbdob = [];
+                $is_new = $this->id_is_new($id);
+                unset($write['-'],$write['/']);
+                if($fields = $this->FIELDS){
+                    foreach($write as $k => $v){
+                        if(isset($fields[$k])){
+                            $dbdob[$k] = $v;
                         }
                     }
-                    if($dbdob){
-                        $idk = $this->i->TABLES[$tblp]['idk'];
-                        $insert = (
-                            $is_new
-                            || !($this->i->PDO->query("SELECT `{$idk}` FROM `{$tblp}` WHERE `{$idk}`='{$id}'")
-                                ->fetch(\PDO::FETCH_OBJ)
-                            )
-                        );
-                    
-                        if($insert){
-                            if(!$is_new && $id){
-                                $dbdob['id'] = $id;
-                            } else {
-                                unset($dbdob['id']);
-                            }
-                            if($dbdob){
-                                $keys = array_keys($dbdob);
-                                $l1 = '`'.implode('`, `',$keys).'`';
-                                $l2 = ":".implode(', :',$keys);
-                                $sql = "INSERT INTO `{$tblp}` ({$l1}) VALUES ({$l2})";
-                            } else {
-                                $sql = "INSERT INTO `{$tblp}` () VALUES();";
-                            }
-                            if(($this->i->pdo_write__fn)($sql, $dbdob)){
-                                $id = $this->i->TABLES[$tblp]['last_insert_id'] = $this->i->PDO->lastInsertId();
-                            }
+                }
+                if($dbdob){
+                    $insert = (
+                        $is_new
+                        || !($this->DB->query("SELECT `{$idk}` FROM `{$tblp}` WHERE `{$idk}`='{$id}'")
+                            ->fetch(\PDO::FETCH_OBJ)
+                        )
+                    );
+                
+                    if($insert){
+                        if(!$is_new && $id){
+                            $dbdob['id'] = $id;
                         } else {
                             unset($dbdob['id']);
-                            if($dbdob){
-                                $keys = \array_keys($dbdob);
-                                $p1 = '`'.\implode('`=?, `',$keys).'`=?';
-                                $sql = "UPDATE `{$tblp}` SET {$p1} WHERE `{$idk}`='{$id}'";
-                                ($this->i->pdo_write__fn)($sql, \array_values($dbdob));
-                            }
+                        }
+                        if($dbdob){
+                            $keys = array_keys($dbdob);
+                            $l1 = '`'.implode('`, `',$keys).'`';
+                            $l2 = ":".implode(', :',$keys);
+                            $sql = "INSERT INTO `{$tblp}` ({$l1}) VALUES ({$l2})";
+                        } else {
+                            $sql = "INSERT INTO `{$tblp}` () VALUES();";
+                        }
+                        if($this->DB->execute($sql, $dbdob)){
+                            $id = $this->last_insert_id = $this->DB->lastInsertId();
+                        }
+                    } else {
+                        unset($dbdob['id']);
+                        if($dbdob){
+                            $keys = \array_keys($dbdob);
+                            $p1 = '`'.\implode('`=?, `',$keys).'`=?';
+                            $sql = "UPDATE `{$tblp}` SET {$p1} WHERE `{$idk}`='{$id}'";
+                            $this->DB->execute($sql, \array_values($dbdob));
                         }
                     }
-                    
-                    if($id == '+' || (\is_int($id) && $id < 0)){
-                        $id = (int) \microtime(true);
-                    }
-                    
-                    $frec = \_\DATA_DIR."/0/{$tblp}/@{$id}/.$-json";
-                    $drec = \dirname($frec);
-                    \is_dir($drec) OR \mkdir($drec, 0777, true);    
+                }
                 
-                    if($p__overwrite){
-                        \file_put_contents($frec,\json_encode($fsdob, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-                    } else {
-                        \file_put_contents($frec, 
-                            \json_encode(
-                                \array_replace(
-                                    \is_file($frec) ? \json_decode(\file_get_contents($frec),true) : [], 
-                                    $fsdob
-                                ), 
-                                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
-                            )
-                        );
-                    }
-        
-                    if($p__overwrite){
-                        if(\is_dir($drec)){
-                            foreach (
-                                new \RecursiveIteratorIterator(
-                                    new \RecursiveDirectoryIterator($drec, \RecursiveDirectoryIterator::SKIP_DOTS),
-                                    \RecursiveIteratorIterator::CHILD_FIRST
-                                ) as $x
-                            ){
-                                $x->isDir() 
-                                    ? \rmdir($x->getRealPath()) 
-                                    : \unlink($x->getRealPath())
-                                ;
-                            }
-                            //\rmdir($drec);
-                        } 
-                    }
-                    
-                    foreach($files as $field => $value){
-                        $pi_k = \pathinfo($file_k = "{$drec}{$field}");
-                        $fnp_k = "{$pi_k['dirname']}/{$pi_k['filename']}";
-                        $extn_k = $pi_k['extension'] ?? '*';
-                        if($value instanceof \SplFileInfo){
-                            if(\file_exists($value)){
-                                if(\is_uploaded_file($value)){
-                                    $extn_v = pathinfo($value->details->name, PATHINFO_EXTENSION);
-                                } else {
-                                    $extn_v = $value->getExtension();
-                                }
-                                if($extn_k === '*'){
-                                    foreach(\glob("{$fnp_k}{,.*}",GLOB_BRACE) as $f){
-                                        \unlink($f);
-                                    }
-                                }
-                                $filedest = (!$extn_v) ? $fnp_k :"{$fnp_k}.{$extn_v}";
-                                \is_dir($dir = \dirname($filedest)) OR \mkdir($dir,0777,true);
-                                \is_uploaded_file($value) ? \move_uploaded_file($value, $filedest) : \copy($value, $filedest);
+                if($id == '+' || (\is_int($id) && $id < 0)){
+                    $id = (int) \microtime(true);
+                }
+                
+                $frec = $this->DIR."/@{$id}/.$-json";
+                $drec = \dirname($frec);
+                \is_dir($drec) OR \mkdir($drec, 0777, true);    
+            
+                if($overwrite){
+                    \file_put_contents($frec,\json_encode($fsdob, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+                } else {
+                    \file_put_contents($frec, 
+                        \json_encode(
+                            \array_replace(
+                                \is_file($frec) ? \json_decode(\file_get_contents($frec),true) : [], 
+                                $fsdob
+                            ), 
+                            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+                        )
+                    );
+                }
+    
+                if($overwrite){
+                    if(\is_dir($drec)){
+                        foreach (
+                            new \RecursiveIteratorIterator(
+                                new \RecursiveDirectoryIterator($drec, \RecursiveDirectoryIterator::SKIP_DOTS),
+                                \RecursiveIteratorIterator::CHILD_FIRST
+                            ) as $x
+                        ){
+                            $x->isDir() 
+                                ? \rmdir($x->getRealPath()) 
+                                : \unlink($x->getRealPath())
+                            ;
+                        }
+                        //\rmdir($drec);
+                    } 
+                }
+                
+                foreach($files as $field => $value){
+                    $pi_k = \pathinfo($file_k = "{$drec}{$field}");
+                    $fnp_k = "{$pi_k['dirname']}/{$pi_k['filename']}";
+                    $extn_k = $pi_k['extension'] ?? '*';
+                    if($value instanceof \SplFileInfo){
+                        if(\file_exists($value)){
+                            if(\is_uploaded_file($value)){
+                                $extn_v = pathinfo($value->details->name, PATHINFO_EXTENSION);
                             } else {
-                                //* todo - report error!
+                                $extn_v = $value->getExtension();
                             }
-                        } else if(empty($value)) {
                             if($extn_k === '*'){
                                 foreach(\glob("{$fnp_k}{,.*}",GLOB_BRACE) as $f){
                                     \unlink($f);
-                                } 
-                            } else {
-                                \unlink("{$fnp_k}.{$extn_k}");
-                            }
-                        }
-                    }
-                } else if(!$is_new){
-                    $frec = \_\DATA_DIR."/0/{$tblp}/@{$id}/.$-json";
-                    $drec = \dirname($frec);
-                    $rec = [];
-                    if($this->i->PDO && isset($this->i->TABLES[$tblp])){
-                        $idk = $this->i->TABLES[$tblp]['idk'];
-                        $rec = $this->i->PDO->query("SELECT * FROM `{$tblp}` WHERE `{$idk}`='{$id}' LIMIT 1")
-                            ->fetchAll(\PDO::FETCH_ASSOC)[0] ?? []
-                        ;
-                    }
-                    if(\is_file($frec)){
-                        $rec['-'] = \json_decode(\file_get_contents($frec),true);
-                    }            
-                    foreach(\glob("{$drec}/*", GLOB_BRACE) as $f){
-                        if(!\is_dir($f)){
-                            $pi = pathinfo($f);
-                            $rec['/']["{$pi['filename']}"] = new \SplFileInfo(\str_replace('\\','/',$f));
-                        }
-                    }
-                    return $rec;
-                } else {
-                    return null;
-                }
-            } else {
-                return null;
-            }
-        } else if(\is_callable($id)) {
-            return (function($tblp, $q_fn, $params, $i){
-                $this->origin = 'o';
-                $this->tblp = $tblp;
-                $this->params = $params;
-                ($q_fn)($this, $params);
-                $this->i = $i;
-                $this->prepare__fn = function($sql){
-                    $q__pre_exec = ($this->on__prepare__fn ?? null) instanceof \Cloaure 
-                        ? $this->on__prepare__fn
-                        : function(){ yield from []; }
-                    ;
-                    $stmt = $this->i->PDO->prepare($sql);
-                    foreach(($q__pre_exec)($this->i->PDO, $stmt) as $k => $bind){
-                        switch($type = gettype($bind)) {
-                            case "boolean":{
-                                $stmt->bindValue($k, $bind, \PDO::PARAM_BOOL);
-                            } break;
-                            case "integer":{
-                                $stmt->bindValue($k, $bind, \PDO::PARAM_INT);
-                            } break;
-                            case "double":{
-                                $stmt->bindValue($k, $bind, \PDO::PARAM_STR);
-                            } break;
-                            case "string":{
-                                $stmt->bindValue($k, $bind, \PDO::PARAM_STR);
-                            } break;
-                            case "array":{
-                                $stmt->bindValue($k, ...$bind);
-                            } break;
-                            case "NULL":{
-                                $stmt->bindValue($k, $bind);
-                            } break;
-                            default:{
-                                throw new \Exception("Unsupported data-type '{$type}' used in PDO Statement");
-                            } break;
-                        }
-                    }
-                    return $stmt;
-                };
-                $this->execute__fn = function($sql, $step = 1){
-                    if(($this->debug__fn ?? null) instanceof \closure){
-                        ($this->debug__fn)([
-                            'step' => $step,
-                            'sql' => $sql,
-                        ]);
-                    }
-                    $stmt = ($this->prepare__fn)($sql);
-                    $stmt->execute();
-                    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-                    return $rows;
-                };
-                $this->fetch__fn = function(int $start = 0, int $limit = 1){
-                    $limit = ($limit < 0)
-                        ? $this->i->PDO->query("SELECT COUNT(*) FROM {$this->tblp}")->fetchColumn()
-                        : $limit
-                    ;
-                    if($start < 0){
-                        $rstart = -$start;
-                        $sql_limit = "ORDER BY `{$this->origin}`.`id` DESC LIMIT {$rstart}";
-                    } else {
-                        $sql_limit = "LIMIT {$limit} OFFSET {$start}";    
-                    }
-                    //$pack = $this->i->PDO->query("{$this->sql_limless} {$sql_limit}")->fetchAll(\PDO::FETCH_ASSOC) ?? [];
-                    $rows = ($this->execute__fn)("{$this->sql_limless} {$sql_limit}", 1);
-                    $count = \count($rows);
-                    $seq = $start;
-                    foreach($rows as &$d){
-                        $d = ['#' => $seq++] + $d;
-                    }
-                    if(\is_callable($fn = $this->adjust_each__fn ?? null)){
-                        foreach($rows as &$row){
-                            ($fn)($row, $rows);
-                        }
-                    }
-                    return $rows;
-                };
-                $this->sql_selects = \implode('', \iterator_to_array((function(){
-                    yield "SELECT\n\t";
-                    $s = [];
-                    if($qselect = $this->select ?? null){
-                        if(\is_array($qselect)){
-                            foreach($qselect ?? [] as $k => $v){
-                                if(\is_numeric($k)){
-                                    $s[] =  "{$v}";    
-                                } else {
-                                    $s[] =  "{$v} as `{$k}`";    
                                 }
                             }
-                            yield \implode(",\n\t", $s);
-                        } else if(\is_string($qselect)){
-                            yield $qselect;
+                            $filedest = (!$extn_v) ? $fnp_k :"{$fnp_k}.{$extn_v}";
+                            \is_dir($dir = \dirname($filedest)) OR \mkdir($dir,0777,true);
+                            \is_uploaded_file($value) ? \move_uploaded_file($value, $filedest) : \copy($value, $filedest);
                         } else {
-                            yield '*';    
+                            //* todo - report error!
                         }
-                    } else {
-                        yield '*';
-                    }
-                })()));
-                $this->sql_assemblers = \implode('', \iterator_to_array((function(){
-                    yield "\nFROM\n\t`{$this->tblp}` as `{$this->origin}`";
-                    foreach($this->join ?? [] as $v){
-                        yield "\n\t".$v;
-                    }
-                    if($where = $this->where ?? null){
-                        if(\is_string($this->where)){
-                            yield "WHERE ".$this->where;
-                        } else if(\is_array($this->where)) {
-                            $filters = [];
-                            $count = \count($args);
-                            if($count == 1){
-                                $filters[] = $args[0];
-                            } else if($count == 2){
-                                list($col, $with) = $args;
-                                $compate = '=';
-                                if($x = $this->select[$col] ?? false){
-                                    $x = implode('`.`', \explode('.', \str_replace('`','', $x)));
-                                    $filters[] = "`{$x}` {$compare} {$with}";
-                                } else {
-                                    $col = implode('`.`', \explode('.', \str_replace('`','', $col)));
-                                    $filters[] = "`{$col}` {$compare} {$with}";            
-                                }
-                            } else if($count == 3){
-                                list($col, $compare, $with) = $args;
-                                if($x = $this->select[$col] ?? false){
-                                    $x = implode('`.`', \explode('.', \str_replace('`','', $x)));
-                                    $filters[] = "`{$x}` {$compare} '{$with}'";
-                                } else {
-                                    $col = implode('`.`', \explode('.', \str_replace('`','', $col)));
-                                    $filters[] = "`{$col}` {$compare} '{$with}'";
-                                }
-                            }
-                            if($filters){
-                                yield "\nWHERE 1";
-                                if($filters){
-                                    yield "\n\tAND ".\implode("\n\tAND ", $filters);
-                                }
-                            }
+                    } else if(empty($value)) {
+                        if($extn_k === '*'){
+                            foreach(\glob("{$fnp_k}{,.*}",GLOB_BRACE) as $f){
+                                \unlink($f);
+                            } 
+                        } else {
+                            \unlink("{$fnp_k}.{$extn_k}");
                         }
                     }
-                    if($this->group ?? null){
-                        yield "\nGROUP BY\n\t";
-                        yield implode(',', $this->group);
+                }                
+            }
+            
+            public function row__isset($id){
+                $tblp = $this->TBLP;
+                return ($this->query("SELECT `{$this->table__idk($tblp)}` FROM `{$tblp}` WHERE `{$this->table__idk($tblp)}`='{$id}'")
+                    ->fetch(\PDO::FETCH_OBJ)
+                ) || \is_dir($this->dir__i."/{$tblp}/({$id})");
+            }
+            
+            public function row__unset($id){
+                if(!$this->id_is_new($id)){
+                    $tblp = $this->TBLP;
+                    $frec = $this->DIR."/@{$id}/.$-json";
+                    $drec = \dirname($frec);
+                    if(\is_file($frec)){
+                        \unlink($frec);
                     }
-                    if($this->order ?? null){
-                        yield "\nORDER BY\n\t";
-                        yield implode(',', $this->order);
+                    if(\is_dir($drec)){
+                        foreach (
+                            new \RecursiveIteratorIterator(
+                                new \RecursiveDirectoryIterator($drec, \RecursiveDirectoryIterator::SKIP_DOTS),
+                                \RecursiveIteratorIterator::CHILD_FIRST
+                            ) as $x
+                        ){
+                            $x->isDir() 
+                                ? \rmdir($x->getRealPath()) 
+                                : \unlink($x->getRealPath())
+                            ;
+                        }
+                        \rmdir($drec);
                     }
-                })()));
-                $this->sql_limless = "{$this->sql_selects} {$this->sql_assemblers}";
-                switch($this->params['get'] ?? null){
-                    case 'count_all':{
-                        return $this->i->PDO->query("SELECT COUNT(*) FROM {$this->TBLP}")->fetchColumn();
-                    } break;
-                    case 'count_filtered':{
-                        return $this->i->PDO->query("SELECT COUNT(*) ".$this->sql__assemblers)->fetchColumn();
-                    } break;
-                    case 'first':{
-                        return ($this->fetch__fn)(0, 1);
-                    } break; 
-                    case 'last':{
-                        return ($this->fetch__fn)(-1, 1);
-                    } break; 
-                    case 'all':{
-                        return ($this->fetch__fn)(0, -1);
-                    } break; 
-                    case 'one':{
-                        return ($this->fetch__fn)($this->params['start'] ?? 0, 1);
-                    } break; 
-                    case 'bunch':{
-                        return ($this->fetch__fn)(0, $this->params['limit'] ?? -1);
-                    } break; 
-                    case 'range':{
-                        return ($this->fetch__fn)($this->params['start'] ?? 0, $this->params['limit'] ?? -1);
-                    } break; 
-                    case 'slice': {
-                        $start = $this->params['start'] ?? 0;
-                        $limit = $this->params['limit'] ?? -1;
-                        if($count_filtered = $this->i->PDO->query("SELECT COUNT(*) {$this->sql__assemblers}")->fetchColumn()){
+                    if($this->FIELDS){
+                        $this->DB->exec("DELETE FROM `{$tblp}` WHERE `id`='{$id}'");                     
+                    }
+                }                
+            }
+            
+            public function row__get($id){
+                $tblp = $this->TBLP;
+                $frec = $this->DIR."/@{$id}/.$-json";
+                $drec = \dirname($frec);
+                $rec = [];
+                if($this->FIELDS){
+                    $idk = $this->IDK;
+                    $rec = $this->DB->query("SELECT * FROM `{$tblp}` WHERE `{$idk}`='{$id}' LIMIT 1")
+                        ->fetchAll(\PDO::FETCH_ASSOC)[0] ?? []
+                    ;
+                }
+                if(\is_file($frec)){
+                    $rec['-'] = \json_decode(\file_get_contents($frec),true);
+                }            
+                foreach(\glob("{$drec}/*", GLOB_BRACE) as $f){
+                    if(!\is_dir($f)){
+                        $pi = pathinfo($f);
+                        $rec['/']["{$pi['filename']}"] = new \SplFileInfo(\str_replace('\\','/',$f));
+                    }
+                }
+                return $rec;
+            }
+            
+            public function query($builder__fn = null){
+                return new class($builder__fn, $this) extends \stdClass {
+                    public function __construct($q_fn, $table){
+                        $this->origin = 'T';
+                        $this->TABLE = $table;
+                        $this->params = [];
+                        $this->DB = $table->DB;
+                        ($q_fn)($this);
+                        $this->sql_selects = \implode('', \iterator_to_array((function(){
+                            yield "SELECT\n\t";
+                            $s = [];
+                            if($qselect = $this->select ?? null){
+                                if(\is_array($qselect)){
+                                    foreach($qselect ?? [] as $k => $v){
+                                        if(\is_numeric($k)){
+                                            $s[] =  "{$v}";    
+                                        } else {
+                                            $s[] =  "{$v} as `{$k}`";    
+                                        }
+                                    }
+                                    yield \implode(",\n\t", $s);
+                                } else if(\is_string($qselect)){
+                                    yield $qselect;
+                                } else {
+                                    yield '*';    
+                                }
+                            } else {
+                                yield '*';
+                            }
+                        })()));
+                        $this->sql_assemblers = \implode('', \iterator_to_array((function(){
+                            yield "\nFROM\n\t`{$this->TABLE->TBLP}` as `{$this->origin}`";
+                            foreach($this->join ?? [] as $v){
+                                yield "\n\t".$v;
+                            }
+                            if($where = $this->where ?? null){
+                                if(\is_string($this->where)){
+                                    yield "WHERE ".$this->where;
+                                } else if(\is_array($this->where)) {
+                                    $filters = [];
+                                    $count = \count($args);
+                                    if($count == 1){
+                                        $filters[] = $args[0];
+                                    } else if($count == 2){
+                                        list($col, $with) = $args;
+                                        $compate = '=';
+                                        if($x = $this->select[$col] ?? false){
+                                            $x = implode('`.`', \explode('.', \str_replace('`','', $x)));
+                                            $filters[] = "`{$x}` {$compare} {$with}";
+                                        } else {
+                                            $col = implode('`.`', \explode('.', \str_replace('`','', $col)));
+                                            $filters[] = "`{$col}` {$compare} {$with}";            
+                                        }
+                                    } else if($count == 3){
+                                        list($col, $compare, $with) = $args;
+                                        if($x = $this->select[$col] ?? false){
+                                            $x = implode('`.`', \explode('.', \str_replace('`','', $x)));
+                                            $filters[] = "`{$x}` {$compare} '{$with}'";
+                                        } else {
+                                            $col = implode('`.`', \explode('.', \str_replace('`','', $col)));
+                                            $filters[] = "`{$col}` {$compare} '{$with}'";
+                                        }
+                                    }
+                                    if($filters){
+                                        yield "\nWHERE 1";
+                                        if($filters){
+                                            yield "\n\tAND ".\implode("\n\tAND ", $filters);
+                                        }
+                                    }
+                                }
+                            }
+                            if($this->group ?? null){
+                                yield "\nGROUP BY\n\t";
+                                yield implode(',', $this->group);
+                            }
+                            if($this->order ?? null){
+                                yield "\nORDER BY\n\t";
+                                yield implode(',', $this->order);
+                            }
+                        })()));
+                        $this->sql_limless = "{$this->sql_selects} {$this->sql_assemblers}";
+                    }
+                    public function on__prepare(\closure $fn){
+                        $this->on__prepare__fn = $fn;
+                        return $this;
+                    }
+                    public function on__adjust_each(\closure $fn){
+                        $this->on__adjust_each__fn = $fn;
+                        return $this;
+                    }
+                    public function on__adjust_pack(\closure $fn){
+                        $this->on__adjust_pack__fn = $fn;
+                        return $this;
+                    }
+                    public function on__debug(\closure $fn){
+                        $this->on__debug__fn = $fn;
+                        return $this;
+                    }
+                    private function prepare($sql){
+                        $q__pre_exec = ($this->on__prepare__fn ?? null) instanceof \Cloaure 
+                            ? $this->on__prepare__fn
+                            : function(){ yield from []; }
+                        ;
+                        $stmt = $this->DB->prepare($sql);
+                        foreach(($q__pre_exec)($this->DB, $stmt) as $k => $bind){
+                            switch($type = gettype($bind)) {
+                                case "boolean":{
+                                    $stmt->bindValue($k, $bind, \PDO::PARAM_BOOL);
+                                } break;
+                                case "integer":{
+                                    $stmt->bindValue($k, $bind, \PDO::PARAM_INT);
+                                } break;
+                                case "double":{
+                                    $stmt->bindValue($k, $bind, \PDO::PARAM_STR);
+                                } break;
+                                case "string":{
+                                    $stmt->bindValue($k, $bind, \PDO::PARAM_STR);
+                                } break;
+                                case "array":{
+                                    $stmt->bindValue($k, ...$bind);
+                                } break;
+                                case "NULL":{
+                                    $stmt->bindValue($k, $bind);
+                                } break;
+                                default:{
+                                    throw new \Exception("Unsupported data-type '{$type}' used in PDO Statement");
+                                } break;
+                            }
+                        }
+                        return $stmt;
+                    }
+                    private function execute($sql, $step = 1){
+                        if(($this->on__debug__fn ?? null) instanceof \closure){
+                            ($this->on__debug__fn)([
+                                'step' => $step,
+                                'sql' => $sql,
+                            ]);
+                        }
+                        $stmt = $this->prepare($sql);
+                        $stmt->execute();
+                        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+                        return $rows;
+                    }
+                    private function fetch(int $start = 0, int $limit = 1){
+                        $limit = ($limit < 0)
+                            ? $this->DB->query("SELECT COUNT(*) FROM {$this->TABLE->TBLP}")->fetchColumn()
+                            : $limit
+                        ;
+                        if($start < 0){
+                            $rstart = -$start;
+                            $sql_limit = "ORDER BY `{$this->origin}`.`id` DESC LIMIT {$rstart}";
+                        } else {
+                            $sql_limit = "LIMIT {$limit} OFFSET {$start}";    
+                        }
+                        //$pack = $this->DB->query("{$this->sql_limless} {$sql_limit}")->fetchAll(\PDO::FETCH_ASSOC) ?? [];
+                        $rows = $this->execute("{$this->sql_limless} {$sql_limit}", 1);
+                        $count = \count($rows);
+                        $seq = $start;
+                        foreach($rows as &$d){
+                            $d = ['#' => $seq++] + $d;
+                        }
+                        if(\is_callable($fn = $this->on__adjust_each__fn ?? null)){
+                            foreach($rows as &$row){
+                                ($fn)($row, $rows);
+                            }
+                        }
+                        return $rows;
+                    }
+                    public function get($type,...$args){
+                        return $this->{'get__'.$type}(...$args);
+                    }
+                    public function get__count_all(){
+                        return $this->DB->query("SELECT COUNT(*) FROM {$this->TABLE->TBLP}")->fetchColumn();
+                    }
+                    public function get__count_filtered(){
+                        return $this->DB->query("SELECT COUNT(*) ".$this->sql__assemblers)->fetchColumn();
+                    }
+                    public function get__first(){
+                        return $this->fetch(0, 1);
+                    }
+                    public function get__last(){
+                        return $this->fetch(-1, 1);
+                    }
+                    public function get__all(){
+                        return $this->fetch(0, -1);
+                    }
+                    public function get__one($start = 0){
+                        return $this->fetch($start, 1);
+                    }
+                    public function get__bunch($limit = -1){
+                        return $this->fetch(0, $limit);
+                    }
+                    public function get__range($start = 0, $limit = -1){
+                        return $this->fetch($start, $limit);
+                    }
+                    public function get__slice($start = 0, $limit = -1) {
+                        if($count_filtered = $this->DB->query("SELECT COUNT(*) {$this->sql_assemblers}")->fetchColumn()){
                             $limit = ($limit < 0) ? 0 : $limit;
-                            $pack = ($this->fetch__fn)($start, $limit);
+                            $pack = $this->fetch($start, $limit);
                             $end = $start + $count -1;
                             $pack = [
                                 'meta' => [
@@ -1227,11 +1285,9 @@ namespace _ { if(!\function_exists(d::class)){ function d($path = null, $id = nu
                             ($fn)($pack);
                         }
                         return $pack;
-                    } break;
-                    case 'page': {
-                        if($count_filtered = $this->i->PDO->query("SELECT COUNT(*) {$this->sql__assemblers}")->fetchColumn()){
-                            $page_no = ($this->params['page_no'] > 0) ? $this->params['page_no'] : 1;
-                            $page_sz = ($this->params['page_sz'] > 0) ? $this->params['page_sz'] : 10;
+                    } 
+                    public function get__page($page_no = 1, $page_sz = 10) {
+                        if($count_filtered = $this->DB->query("SELECT COUNT(*) {$this->sql_assemblers}")->fetchColumn()){
                             $limit = $page_sz = ($page_sz ?: 10);
                             $pages = ($count_filtered
                                 ? (($limit > 0) 
@@ -1245,7 +1301,7 @@ namespace _ { if(!\function_exists(d::class)){ function d($path = null, $id = nu
                                 : $page_no
                             );
                             $start = (($page_no-1) * $limit);
-                            $rows = ($this->fetch__fn)($start, $limit);
+                            $rows = $this->fetch($start, $limit);
                             $count = count($rows);
                             $end = $start + $count -1;
                             $pack = [
@@ -1281,14 +1337,13 @@ namespace _ { if(!\function_exists(d::class)){ function d($path = null, $id = nu
                         if(\is_callable($fn = $this->adjust_pack__fn ?? null)){
                             ($fn)($pack);
                         }
-                        return $package;                        
-                    } break;
-                }
-                
-            })->bindTo((object)[])($tblp, $id, $params, $this->i);
-        }
-        
-    })->bindTo((object)[]))($path, $id, $params);
+                        return $pack;
+                    }
+                };
+            }
+            
+        });
+    }
 }}}
 #endregion
 # ######################################################################################################################
