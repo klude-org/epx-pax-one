@@ -1,20 +1,24 @@
-<?php return function($f,$d = null){
-    if(!\str_ends_with($f,'.start.php')){
-        $f .= '/--epx/.start.php';
+<?php return function($path,$d = null){
+    $flist = [];
+    if(\str_ends_with($path,'.php')){
+        $flist[] = $path;
+    } else {
+        $flist[] = "{$path}/--epx/.start.php";
+        $flist[] = "{$path}/.start.php";
+        $flist[] = "{$path}/.start-php";
     }
     $d ??= \dirname($_SERVER['SCRIPT_FILENAME']);
-    while ($d && $d !== dirname($d) && !file_exists($p = $d.DIRECTORY_SEPARATOR.$f)) {
+    $found = false;
+    while ($d && $d !== dirname($d)) {
+        foreach($flist as $f){
+            if(\file_exists($p = "{$d}/{$f}")){
+                $found = $p;
+                break 2;
+            }
+        }
         $d = dirname($d);
     }
-    if(!\is_file($p)){
-        $d ??= __DIR__;
-        while ($d && $d !== dirname($d) && !file_exists($p = $d.DIRECTORY_SEPARATOR.$f)) {
-            $d = dirname($d);
-        }
-    }
-    if(\is_file($p)){
-        return include $p;
-    } else {
+    if(!\is_file($found)){
         try{
             throw new \Exception("Unable to locate start - {$f}");
         } catch (\Throwable $ex) {
@@ -37,6 +41,6 @@
                 exit(1);
             }
         }
-        
     }
+    return include $found;    
 };
