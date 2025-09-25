@@ -94,7 +94,7 @@ namespace _ { return (function(){
                 echo \json_encode([
                     'status' => "error",
                     'message' => $ex->getMessage(),
-                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES); 
                 exit(1);
             } break;
         }
@@ -116,13 +116,14 @@ namespace _ { return (function(){
         }
     });
     
-    $BOOT = $_['BOOT'] ?? "v250925_01";
-    if(!\is_file($localfile = \_\START_DIR."/".($file = \str_replace('\\','/','boot/'.$BOOT).'/.boot.php'))){
+    $BOOT = $_['BOOT'] ?? null ?: "sys-01/--epx/boot/01";
+    if($start = \realpath($d = \dirname(__DIR__)."/{$BOOT}/.boot.php")){
+        return include $start;    
+    } else {
         empty($_SERVER['HTTP_HOST']) OR \http_response_code(500);
-        echo "500: Failed to locate boot: {$BOOT}".PHP_EOL;
+        echo "500: Failed to locate boot: {$d}".PHP_EOL;
         exit();
     }
     
-    return include $localfile;
     
 })(); }    

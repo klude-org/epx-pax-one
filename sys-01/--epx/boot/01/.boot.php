@@ -537,8 +537,7 @@ namespace {(function(){
     (isset($_ENV[':ALT']) && \is_array($_ENV[':ALT'])) OR $_ENV[':ALT'] = [];
     (isset($_TRACE) && \is_array($_TRACE)) OR $_TRACE = [];
     \define('_\START_EN', \is_array($a = $_['START_EN'] ?? null) ? $a : []);
-    // \define('_\START_FILE', \str_replace('\\','/', __FILE__));
-    // \define('_\START_DIR', \dirname(\_\START_FILE));
+    \define('_\SYS_DIR', \str_replace('\\','/',\dirname(__DIR__,2)));
     \define('_\INCP_DIR', \str_replace('\\','/',\realpath(\dirname($_SERVER['SCRIPT_FILENAME']))));
     \define('_\SITE_DIR', (empty($_SERVER['HTTP_HOST'])
         ? \str_replace('\\','/',\realpath($_SERVER['FW__SITE_DIR'] ?? \getcwd()))
@@ -577,20 +576,18 @@ namespace {(function(){
     
     $intfc = \_\INTFC;
     $lcl__ft = \is_file($f = $lcl__f = \_\SITE_DIR."/.local/.cache-config-{$intfc}.php") ? \filemtime($f) : 0;
-    $cfg__ft = \is_file($f = $cfg__f = \_\SITE_DIR."/.config.php") ? \filemtime($f) : 0;
-    $ifc__ft = \is_file($f = $ifc__f = \_\SITE_DIR."/.config-{$intfc}.php") ? \filemtime($f) : 0;
+    $cfg__ft = \is_file($f = $cfg__f = \_\SITE_DIR."/.local/.config.php") ? \filemtime($f) : 0;
+    $ifc__ft = \is_file($f = $ifc__f = \_\SITE_DIR."/.local/.config-{$intfc}.php") ? \filemtime($f) : 0;
     if(
-        $lcl__ft > $lcl__ft
-        && $lcl__ft > $ifc__ft
-        && $lcl__ft > \filemtime(__FILE__)
-        && $lcl__ft > \filemtime($_SERVER['SCRIPT_FILENAME'])
+        $lcl__ft <= $cfg__ft
+        || $lcl__ft <= $ifc__ft
+        || $lcl__ft <= \filemtime(__FILE__)
+        || $lcl__ft <= \filemtime($_SERVER['SCRIPT_FILENAME'])
     ){ 
-        include $lcl__f;
-    } else {
         global $_;
         $ifc__ft AND include $ifc__f;
         $cfg__ft AND include $cfg__f;
-        $env['_'] = $_;
+        $env = $_;
         $env['LSP']['LIST'] = \iterator_to_array((function(){
             global $_;
             foreach($_['LIBRARIES'] ?? [] as $dx => $en){
@@ -614,7 +611,7 @@ namespace {(function(){
                 }
             }
             for (
-                $i=0, $dx=\_\START_DIR; 
+                $i=0, $dx=\_\SYS_DIR; 
                 $dx && $i < 20 ; 
                 $i++, $dx = (\strchr($dx, DIRECTORY_SEPARATOR) != DIRECTORY_SEPARATOR) ? \dirname($dx) : null
             ){ 
@@ -626,7 +623,7 @@ namespace {(function(){
         foreach($env['LSP']['LIST'] as $d => $en){
             $GLOBALS['_TRACE'][] = "Library directory included: '".\str_replace('\\','/', $d)."'";
         }
-        $MODULE_RESOLVE__FN = function($expr, $auto = null){
+        $MODULE_RESOLVE__FN = function($expr, $auto = null) use($env){
             if(($expr[0]??'')=='/' || ($expr[1]??'')==':'){
                 return \str_replace('\\','/', \realpath($expr));
             } else {
@@ -649,7 +646,7 @@ namespace {(function(){
         }
         foreach($_['MODULES'] ?? ['app' => true] as $k => $v){
             if($k == 'START'){
-                $modules[\_\START_DIR] = $v ? true : false;
+                $modules[\_\SYS_DIR] = $v ? true : false;
             } else if($k == 'SITE'){
                 $modules[\_\SITE_DIR] = $v ? true : false;
             } else if($v){
@@ -682,14 +679,14 @@ namespace {(function(){
         }
         $env['THEME'] = $themes;
         $env['TSP']['PATH'] = \implode(PATH_SEPARATOR, \array_keys(\array_filter($modules)));
-        $env['site_dir'] = $site_dir = \_\SITE_DIR;
-        $env['local_dir'] = \_\SITE_DIR."/.local";
-        $env['data_dir'] = ($_['DATA'] ?? false) ? (($MODULE_RESOLVE__FN)($_['DATA']) ?: ((function($p){
+        $def['LOCAL_DIR'] = \_\SITE_DIR."/.local";
+        $def['DATA_DIR'] = ($_['DATA'] ?? false) ? (($MODULE_RESOLVE__FN)($_['DATA']) ?: ((function($p){
             throw new \Exception("Unable to locate data path: '{$p}'");
         }))($_['DATA'])) : (function(){
-            \is_dir($d = \_\SITE_DIR."/.local-data") OR \mkdir($d,0777,true);
+            \is_dir($d = \_\SITE_DIR."/.local/data") OR \mkdir($d,0777,true);
+            return $d;
         })();
-        $env['root_dir'] = (function() use(&$root_dir, &$root_url, $site_dir){
+        $def['ROOT_DIR'] = (function() use(&$root_dir, &$root_url){
             if(!empty($_SERVER['HTTP_HOST'])){
                 $root_url = (function(){
                     return (($_SERVER["REQUEST_SCHEME"] 
@@ -712,17 +709,17 @@ namespace {(function(){
                     }
                 }
                 if(!$root_dir){
-                    $root_dir = $site_dir;
+                    $root_dir = \_\SITE_DIR;
                     $root_url = "";
                 }
             }
             return $root_dir;
         })();
-        $env['site_urp'] = $site_urp = (function()use($root_dir, $root_url, $site_dir){
+        $def['SITE_URP'] = $site_urp = (function()use($root_dir, $root_url){
             if(empty($_SERVER['HTTP_HOST'])){
                 if($root_url){
-                    if(\str_starts_with($site_dir, $root_dir)){
-                        return \substr($site_dir, \strlen($root_dir));
+                    if(\str_starts_with(\_\SITE_DIR, $root_dir)){
+                        return \substr(\_\SITE_DIR, \strlen($root_dir));
                     } else {
                         return false;
                     }
@@ -740,16 +737,20 @@ namespace {(function(){
                 }
             }
         })();
-        $env['root_url'] = $root_url;
-        $env['site_url'] = $site_url = ($root_url  ? \rtrim($root_url.$site_urp,'/') : "");
-        $cfg_export = \str_replace("\n","\n  ", \var_export($env,true));
+        $def['ROOT_URL'] = $root_url;
+        $def['SITE_URL'] = $site_url = ($root_url  ? \rtrim($root_url.$site_urp,'/') : "");
+        $env_export = \str_replace("\n","\n  ", \var_export($env,true));
+        $def_export = '';
+        foreach($def as $k => $v){
+            $def_export .= "\define('_\\{$k}', '{$v}');\n";
+        }
         $stamp = \date('Y-md-Hi-s').PHP_EOL;
         $trace = \implode(PHP_EOL."# ", $GLOBALS['_TRACE'] ?? []);
         $contents = <<<PHP
         <?php 
         namespace {
-        \$_ENV += {$cfg_export}
-        ;
+        \$_ENV = \array_replace_recursive(\$_ENV, {$env_export});
+        {$def_export}
         }
         # {$trace}
         # {$stamp}
@@ -807,15 +808,12 @@ namespace {(function(){
     \define('_\SIG_START', \_\MSTART); //always master_start!
     \define('_\REGEX_CLASS_FQN', '/^(([a-zA-Z_\\x80-\\xff][\\\\a-zA-Z0-9_\\x80-\\xff]*)\\\\)?([a-zA-Z_\\x80-\\xff][a-zA-Z0-9_\\x80-\\xff]*)$/');
     \define('_\REGEX_CLASS_QN', '/^[a-zA-Z_\\x80-\\xff][a-zA-Z0-9_\\x80-\\xff]*$/');
-    \define('_\SCRATCH_DIR', \dirname(\_\START_DIR).'/.local');
     \define('_\IS_CLI', (\_\INTFC === 'cli'));
     \define('_\IS_WEB', (\_\INTFC === 'web'));
     \define('_\IS_HTTP', (\_\INTFC !== 'cli'));
     \define('_\IS_API', (!\_\IS_CLI && !\_\IS_WEB));
     \define('_\IS_HTML', (strpos(($_SERVER['HTTP_ACCEPT'] ?? ''),'text/html') !== false));
     \define('_\KEY', \md5($_SERVER['SCRIPT_FILENAME']));
-    \define('_\DATA_DIR', $_ENV['data_dir']);
-    \define('_\LOCAL_DIR', $_ENV['local_dir']);
 })();}
 #endregion
 namespace _ { final class request extends \stdClass implements \ArrayAccess, \JsonSerializable {
@@ -1107,7 +1105,7 @@ namespace _ { final class request extends \stdClass implements \ArrayAccess, \Js
                     }
                 }
                 
-                if(!empty($this->_['portal']) && empty($this->alt_route_path)){
+                if(0 AND !empty($this->_['portal']) && empty($this->alt_route_path)){
                     $portal = $this->_['portal'];
                     $portals = $_SESSION['--AUTH']['portals'] ?? [];
                     $role_data = ['permits' => ['*']];
@@ -1211,15 +1209,15 @@ namespace _ { final class request extends \stdClass implements \ArrayAccess, \Js
             };
             
             //$_ENV = \_\REQ + $_ENV;
-            $_ENV['base_url'] = $base_url = rtrim($_ENV['site_url']."/"
+            \define('_\BASE_URL', $base_url = rtrim(\_\SITE_URL."/"
                 .(
                     ($this->_['portal'] ?? null ?: '')
                     .'.'.($this->_['role'] ?? null ?: '')
                 )
                 , 
                 '/.'
-            );
-            $_ENV['ctlr_url'] = \rtrim("{$_ENV['base_url']}/{$this->_['rpath']}",'/');
+            ));
+            \define('_\CTLR_URL',\rtrim(\_\BASE_URL."/{$this->_['rpath']}",'/'));
             $route_path = $this->alt_route_path ?? null ?: [$this->_['panel'], $this->_['rpath']];
 
             //$route_path = [$this->_['panel'], $this->_['rpath']];
