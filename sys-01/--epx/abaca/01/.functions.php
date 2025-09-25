@@ -1057,12 +1057,12 @@ namespace _ { if(!\function_exists(db::class)){ function db($table_name = null) 
                 return $rec;
             }
             
+            
             public function query($builder__fn = null){
                 return new class($builder__fn, $this) extends \stdClass {
                     public function __construct($q_fn, $table){
                         $this->origin = 'T';
                         $this->TABLE = $table;
-                        $this->params = [];
                         $this->DB = $table->DB;
                         ($q_fn)($this);
                         $this->sql_selects = \implode('', \iterator_to_array((function(){

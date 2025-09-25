@@ -118,6 +118,7 @@ class url_tree {
         if(count($tree) == 1 && !\is_array($tree[$k = array_key_first($tree)])){
             $tree[\str_replace('_','-', $k)] = ['' => $tree[$k]];
         }
+        unset($tree['--auth']);
         return ($this->panel == '*') ? $tree : $tree[\str_replace('_','-', $this->panel)] ?? [];
     }
     
