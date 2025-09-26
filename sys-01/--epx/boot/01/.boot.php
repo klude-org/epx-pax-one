@@ -579,7 +579,8 @@ namespace {(function(){
     $cfg__ft = \is_file($f = $cfg__f = \_\SITE_DIR."/.local/.config.php") ? \filemtime($f) : 0;
     $ifc__ft = \is_file($f = $ifc__f = \_\SITE_DIR."/.local/.config-{$intfc}.php") ? \filemtime($f) : 0;
     if(
-        $lcl__ft <= $cfg__ft
+        1
+        || $lcl__ft <= $cfg__ft
         || $lcl__ft <= $ifc__ft
         || $lcl__ft <= \filemtime(__FILE__)
         || $lcl__ft <= \filemtime($_SERVER['SCRIPT_FILENAME'])
@@ -641,7 +642,7 @@ namespace {(function(){
             }
         };
         $modules = [];
-        if(!\is_dir(\_\SITE_DIR."/--epx") && \glob(\_\SITE_DIR."/__*/*-@.php")){
+        if(!\is_dir(\_\SITE_DIR."/--epx") && \glob(\_\SITE_DIR."/__*", GLOB_ONLYDIR)){
             $modules[\_\SITE_DIR] = true;
         }
         foreach($_['MODULES'] ?? ['app' => true] as $k => $v){
@@ -1057,7 +1058,7 @@ namespace _ { final class request extends \stdClass implements \ArrayAccess, \Js
                 \session_start();
             }
             \define('_\SESSION_PATH', \_\KEY.'/'.\session_id());
-            if($this->_['portal'] && (\_\START_EN['auth'] ?? true)){
+            if($this->_['portal'] && \class_exists(\__auth::class)){
                 
                 $abort__fn = function(int $code, string $message){
                     while(\ob_get_level() > \_\OB_OUT){ @\ob_end_clean(); }
