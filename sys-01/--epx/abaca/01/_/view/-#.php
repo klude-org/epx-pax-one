@@ -28,12 +28,24 @@ class view {
             }
             //$file = \stream_resolve_include_path("{$_REQUEST->_['panel']}/-v.php");
         } else if((($expr[1] ?? null) == ':' || ($expr[0] ?? null) == '/')){
-            $file = \realpath($expr,2);
+            if(\str_ends_with($expr,'-v.php')){
+                $file = \realpath($expr);
+            } else {
+                $file = \realpath("{$expr}-v.php")
+                    ?: \realpath("{$expr}/-v.php")
+                ;
+            }
         } else {
             if(\str_starts_with($expr, '#/')){
                 $expr = \substr($expr,2);
-            } else if(\str_starts_with($expr, '#')){
-                $expr = \trim("{$_REQUEST->_['panel']}/".\substr($expr,1),'/');
+            } else if(\str_starts_with($expr, '#panel/')){
+                $expr = \trim("{$_REQUEST->_['panel']}/".\substr($expr,7),'/');
+            } else if(\str_starts_with($expr, '#theme/')){
+                $expr = \trim("_/theme".\substr($expr,7),'/');
+            } else if(\str_starts_with($expr, './')){
+                if($f = \_\get_caller(-1)['file'] ?? null){
+                    $expr = \_\f(\dirname($f))->tsp_path(\substr($expr,2));
+                }
             } else {
                 $expr = "{$_REQUEST->_['panel']}/{$expr}";
             }

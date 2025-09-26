@@ -12,7 +12,11 @@ class file extends \SplFileInfo implements \JsonSerializable, \ArrayAccess {
         parent::__construct($path);
         $this->meta = $info;
     }
-    
+    public function __get($n){
+        if(\class_exists($c = static::class."\\{$n}")){
+            return $c::_($this);
+        }
+    }
     public function offsetSet($n, $v):void { $this->meta[$n] = $v; }
     public function offsetExists($n):bool { return isset($this->meta[$n]) || isset($this->meta[$n]); }
     public function offsetUnset($n):void { unset($this->meta[$n]); }
@@ -30,6 +34,10 @@ class file extends \SplFileInfo implements \JsonSerializable, \ArrayAccess {
     public function x__name(){ return \is_uploaded_file($f) ? $this->meta['name'] : $this->getBasename(); }
     public function x__fpfx(){ return \filename($this->x__name()); }
     public function x__extension(){ return \pathinfo($this->x__name(), PATHINFO_EXTENSION); }
+    public function ensure_dir(){
+        \is_dir($d = \dirname($this)) OR \mkdir($d, 0777, true);
+        return $this;
+    }
     public function move_to($path):\_\f|bool{
         if(\is_uploaded_file($this)){
             \is_dir($d = \dirname($path)) OR \mkdir($d,0777,true);
@@ -93,21 +101,37 @@ class file extends \SplFileInfo implements \JsonSerializable, \ArrayAccess {
         return false;
     }
     public function contents(string $contents, $append = false):string|null {
-        if(func_num_args()){
-            \is_dir($d = \dirname($this->path())) OR \mkdir($d,0777,true);
-            \file_put_contents($this, $contents);
-            return null;
-        } else {
-            return $this->exists() ? \file_get_contents($this->path()) : null;
+    	if($p = $this->getRealPath()){
+            if(func_num_args()){
+                \is_dir($d = \dirname($this->path())) OR \mkdir($d,0777,true);
+                \file_put_contents($this, $contents);
+                return null;
+            } else {
+                return $this->exists() ? \file_get_contents($this->path()) : null;
+            }
         }
     }
-    
     public function include(array $vars = [], object $context = null){
         $context ??= \_::_();
         return (function($f, $vars){
             \extract($vars);
             return include $f;
         })->bindTo($context,$context::class)($this->getRealPath(), $vars);
+    }
+    public function url(){
+        $p = \str_replace('\\','/', $this->getRealPath());
+        if(\str_starts_with($p, \_\ROOT_DIR)){
+            return \_\i\url::_(o()->root_url.'/'.\substr($p, \strlen(\_\ROOT_DIR) + 1));
+        }
+    }
+    public function tsp_path(){
+        $p = $this->path();
+        foreach(\explode(PATH_SEPARATOR,\get_include_path()) ?? [] as $tsp){
+            if(\str_starts_with($p, $tsp)){
+                $px = \substr($p, \strlen($tsp) + 1);
+                return $url;
+            }
+        }        
     }
     
 }
