@@ -576,8 +576,8 @@ namespace {(function(){
     
     $intfc = \_\INTFC;
     $lcl__ft = \is_file($f = $lcl__f = \_\SITE_DIR."/.local/.cache-config-{$intfc}.php") ? \filemtime($f) : 0;
-    $cfg__ft = \is_file($f = $cfg__f = \_\SITE_DIR."/.local/.config.php") ? \filemtime($f) : 0;
-    $ifc__ft = \is_file($f = $ifc__f = \_\SITE_DIR."/.local/.config-{$intfc}.php") ? \filemtime($f) : 0;
+    $cfg__ft = \is_file($f = $cfg__f = \_\SITE_DIR."/.env/.config.php") ? \filemtime($f) : 0;
+    $ifc__ft = \is_file($f = $ifc__f = \_\SITE_DIR."/.env/.config-{$intfc}.php") ? \filemtime($f) : 0;
     if(
         1
         || $lcl__ft <= $cfg__ft
@@ -588,6 +588,8 @@ namespace {(function(){
         global $_;
         $ifc__ft AND include $ifc__f;
         $cfg__ft AND include $cfg__f;
+        \is_file($f = \_\SITE_DIR."/.local/.config.php") AND include $f;
+        \is_file($f = \_\SITE_DIR."/.local/.config-{$intfc}.php") AND include $f;
         $env = $_;
         $env['LSP']['LIST'] = \iterator_to_array((function(){
             global $_;
