@@ -56,9 +56,9 @@ class view {
             if($file){
                 $__FILE__ = $file;
                 $fn = (function($__INSET__,$__VIEW__) use($__FILE__){
-                    $__VIEW__->PARAMS AND \extract($__VIEW__->PARAMS, EXTR_OVERWRITE | EXTR_PREFIX_ALL, 'p__');
+                    \extract($__VIEW__->params(), EXTR_OVERWRITE | EXTR_PREFIX_ALL, 'p__');
                     include $__FILE__;
-                })->bindTo(static::_(),static::class);
+                })->bindTo(\_::_(),\_::class);
                 return new static($fn);
             } else {
                 throw new \Exception("View not found: {$expr}");
@@ -95,15 +95,14 @@ class view {
     public function __invoke($return = false){
         return $this->prt($return);
     }
-        
-    public function o($o){
-        static::_()->o = $o;
-        return $this;
-    }
-    
-    public function params(array $params){
-        $this->PARAMS[] = \array_replace($this->PARAMS, $params);
-        return $this;
+
+    public function params(array $params = null){
+        if(\func_num_args()){
+            $this->PARAMS[] = \array_replace($this->PARAMS, $params);
+            return $this;
+        } else {
+            return $this->PARAMS;
+        }
     }
     
     public function prt($return = false){  
@@ -139,7 +138,7 @@ class view {
         }
     } 
     
-    public static function view(){
+    public static function current_view(){
         return static::$VIEW_STACK[0] ?? null;
     }
     
@@ -309,54 +308,6 @@ class view {
         }
     }
     
-    public static function vars(string|array $n = null, mixed $args = null){
-        static $V = [];
-        if(($count = \func_num_args()) > 1){
-            if(\is_scalar($n)){
-                $V[$n] = $args;
-            } else {
-                throw new \Exception('Invalid Key Type');
-            }
-        } else if($count) {
-            if(\is_scalar($n)){
-                if($v = $V[$n] ?? null){
-                    if(\is_callable($v)){
-                        return ($v)();
-                    } else {
-                        return $v;
-                    }
-                }
-            } else if(\is_array($n) || \is_object($n)){
-                foreach($n as $k => $v){
-                    static::vars($k, $v);
-                }
-            } else {
-                throw new \Exception("Invalid var parameter \$n");
-            }
-            
-        } else {
-            return $V;
-        }
-    }       
-    
-    public static function on_action(string $action, callable $f){
-        if($action = $_REQUEST['--action'] ?? null){
-            ($f)();
-            exit;
-        }
-    }
-   
-    public static function on_view($type, callable $f){
-        ($f)();
-    }
-    
-    public static function respond_json($response){
-        while(ob_get_level() > \_\OB_OUT){ @ob_end_clean(); }
-        header('Content-Type: application/json');
-        echo json_encode($response);
-        exit();
-    }
-    
     public static function render(mixed $expr, bool|array $params = [], bool $texate = false){
         if(\is_bool($params)){
             $texate = $params;
@@ -408,5 +359,16 @@ class view {
     public static function texate(mixed $expr, array $params = []){
         return static::render($expr, $params, true);
     }
+    
+    public static function on_action(string $action, callable $f){
+        if($action = $_REQUEST['--action'] ?? null){
+            ($f)();
+            exit;
+        }
+    }
+    
+    public static function on_view($type, callable $f){
+        ($f)();
+    }    
     
 }

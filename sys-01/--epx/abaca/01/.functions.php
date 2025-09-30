@@ -428,7 +428,22 @@ namespace _ { if(!\function_exists(texate::class)){ function texate(mixed $expr,
 }}}
 namespace _ { if(!\function_exists(prt::class)){ function prt($o){
     \_\IS_HTML AND print("<pre>");
-    echo \is_scalar($o) ? $o : \json_encode($o,JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    $json = \is_scalar($o) 
+        ? $o 
+        : \json_encode(
+            $o,
+                JSON_PRETTY_PRINT 
+                | JSON_UNESCAPED_SLASHES 
+                | JSON_INVALID_UTF8_SUBSTITUTE
+                //| JSON_HEX_TAG ^ JSON_HEX_AMP ^ JSON_HEX_APOS ^ JSON_HEX_QUOT
+                | JSON_UNESCAPED_UNICODE 
+            ,
+        )
+    ;
+    echo \_\IS_HTML 
+        ? htmlspecialchars($json, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        : $json
+    ;
     if (\json_last_error() !== JSON_ERROR_NONE) {
         echo \json_encode(["PRT-ERROR" => \json_last_error().": ".\json_last_error_msg()]);
     }

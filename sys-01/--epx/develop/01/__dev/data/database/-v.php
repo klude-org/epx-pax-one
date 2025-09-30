@@ -1,4 +1,4 @@
-    <?php $this->wrap_in("#/_/theme/page/polec_4"); ?>
+    <?php $this->view->wrap_in("#/_/theme/page/polec_4"); ?>
     <form action="" method="POST">
         <input type="hidden" name="--csrf" value="<?=\_\CSRF?>">
         <div class="container-fluid sticky-top mt-1" style="z-index:1">
