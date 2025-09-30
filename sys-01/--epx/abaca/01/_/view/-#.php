@@ -162,27 +162,29 @@ class view {
         return $store = \_\theme::_()->$feature;
     }
     
-    public static function vars(string|array $name = null, mixed $args = null){
-        static $V = [];
-        if(($count = \func_num_args()) > 1){
-            $V[$name] = $args;
-        } else if($count) {
-            if($v = $V[$name] ?? null){
-                if(\is_callable($v)){
-                    return ($v)();
-                } else {
-                    return $v;
-                }
-            }
-        } else {
-            return $V;
-        }
-    }    
+    public static function head($x){ 
+        static::plic('head', $x);
+    }
     
-    public static function head($x){ static::plic('head', $x); return $this; }
-    public static function tail($x){ static::plic('tail', $x); return $this; }
-    public static function style($x){ static::plic('style', $x); return $this; }
-    public static function script($x){ static::plic('script', $x); return $this; }
+    public static function tail($x){ 
+        static::plic('tail', $x); 
+    }
+    
+    public static function style($x, $once = false){ 
+        if($once){
+            if(static::once($x)){ static::plic('style', $x); }
+        } else {
+            static::plic('style', $x);
+        }
+    }
+    
+    public static function script($x, $once = false){ 
+        if($once){
+            if(static::once($x)){ static::plic('script', $x); }
+        } else {
+            static::plic('script', $x);
+        }
+    }
     
     public static function once($key){
         static $keys = [];
@@ -203,9 +205,6 @@ class view {
             return true;
         }
     }
-    
-    public static function style_once($x){ if(static::once($x)){ static::plic('style', $x); } return $this; }
-    public static function script_once($x){ if(static::once($x)){ static::plic('script', $x); } return $this; }
     
     public static function plugin($expr, $attribs = []){
         $type = '';
@@ -310,21 +309,35 @@ class view {
         }
     }
     
-    public static function var($n, $default = null){
-        if(func_num_args() > 1){
+    public static function vars(string|array $n = null, mixed $args = null){
+        static $V = [];
+        if(($count = \func_num_args()) > 1){
             if(\is_scalar($n)){
-                return static::$VARS[$n] ?? $default;
+                $V[$n] = $args;
+            } else {
+                throw new \Exception('Invalid Key Type');
+            }
+        } else if($count) {
+            if(\is_scalar($n)){
+                if($v = $V[$n] ?? null){
+                    if(\is_callable($v)){
+                        return ($v)();
+                    } else {
+                        return $v;
+                    }
+                }
             } else if(\is_array($n) || \is_object($n)){
                 foreach($n as $k => $v){
-                    static::$VARS[$k] = $v;
+                    static::vars($k, $v);
                 }
             } else {
                 throw new \Exception("Invalid var parameter \$n");
             }
+            
         } else {
-            return static::$VARS[$n] ?? null;
+            return $V;
         }
-    }
+    }       
     
     public static function on_action(string $action, callable $f){
         if($action = $_REQUEST['--action'] ?? null){

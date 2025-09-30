@@ -6,13 +6,20 @@ final class _ extends \stdClass implements \ArrayAccess, \JsonSerializable {
     
     public array $vars = [];
     public array $trace;
+    public object $fn;
     
     public static function _() { static $I; return $I ?? ($I = new static); }
     
-    private function __construct(){  }
+    private function __construct(){ 
+        $this->fn = new \stdClass; 
+    }
     
     public function __get($n){
         static $N =[];  return $N[$k = \strtolower($n)] ?? ($N[$k] = (static::class.'\\'.$k)::_());
+    }
+    
+    public function __call($m,$args){
+        return ($this->fn->$m)(...$args);
     }
     
     public function offsetSet($n, $v):void { 
