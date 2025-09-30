@@ -1079,36 +1079,36 @@ namespace _ { final class request extends \stdClass implements \ArrayAccess, \Js
                 \is_array($_SESSION['--AUTH'] ?? null) OR $_SESSION['--AUTH'] = [];
                 
                 if(($_SESSION['--AUTH']['login_in_progress'] ?? null) == 1){
-                    $this->alt_route_path = ['__auth', \_\INTFC."/login"];
+                    $this->alt_route_path_list = ['__auth', \_\INTFC."/login"];
                 } else {
                     if(($_SESSION['--AUTH']['en'] ?? false) !== true){
                         if(!($_SESSION['--AUTH']['login_in_progress'] ?? false)){
                             $_SESSION['--AUTH'] = [];
                             $_SESSION['--AUTH']['login_in_progress'] = 1;
-                            $this->alt_route_path = ['__auth', \_\INTFC."/login"];
+                            $this->alt_route_path_list = ['__auth', \_\INTFC."/login"];
                             //$redirect__fn(\strtok($_SERVER['REQUEST_URI'],'?'));
                         }
                     }
                     
-                    if(isset($this->alt_route_path)){
+                    if(isset($this->alt_route_path_list)){
                         //* do nothing
                     } else if(
                         isset($_GET['--logout'])
                         || isset($_GET['--signout'])
                     ){
-                        $this->alt_route_path = ['__auth', \_\INTFC."/logout"];
+                        $this->alt_route_path_list = ['__auth', \_\INTFC."/logout"];
                         //$_SESSION['--AUTH'] = [];
                         //$redirect__fn(\strtok($_SERVER['REQUEST_URI'],'?'));
                     } else if(isset($_GET['--switch'])){
-                        $this->alt_route_path = ["__auth", \_\INTFC."/facet"];
+                        $this->alt_route_path_list = ["__auth", \_\INTFC."/facet"];
                     } else if(($auth_option = $_GET['--auth'] ?? null)){
-                        $this->alt_route_path = ["__auth", \_\INTFC."/{$auth_option}"];
+                        $this->alt_route_path_list = ["__auth", \_\INTFC."/{$auth_option}"];
                     } else {
                         //* let it be
                     }
                 }
                 
-                if(0 AND !empty($this->_['portal']) && empty($this->alt_route_path)){
+                if(0 AND !empty($this->_['portal']) && empty($this->alt_route_path_list)){
                     $portal = $this->_['portal'];
                     $portals = $_SESSION['--AUTH']['portals'] ?? [];
                     $role_data = ['permits' => ['*']];
@@ -1221,22 +1221,24 @@ namespace _ { final class request extends \stdClass implements \ArrayAccess, \Js
                 '/.'
             ));
             \define('_\CTLR_URL',\rtrim(\_\BASE_URL."/{$this->_['rpath']}",'/'));
-            $route_path = $this->alt_route_path ?? null ?: [$this->_['panel'], $this->_['rpath']];
+            $route_path_list = $this->alt_route_path_list ?? null ?: [$this->_['panel'], $this->_['rpath']];
 
-            //$route_path = [$this->_['panel'], $this->_['rpath']];
+            //$route_path_list = [$this->_['panel'], $this->_['rpath']];
             $intfc = $this->_['intfc'];
             $tsp = \explode(PATH_SEPARATOR, \get_include_path());
             0 AND ($prt_dx__fn)(true);
             ($_['TRAP']['pre-route'] ?? null) AND ($prt_dx__fn)(true);
             $suffix = ["-@{$intfc}.php", "-@.php", "-@.html"];
-            
-            if($route_path = $route_path ?? null){
+
+            if($route_path_list = $route_path_list ?? null){
+                $__ROUTE_PATH__ = implode('/',\array_map(fn($k) => \trim($k,'/'), $route_path_list));
                 $__CONTEXT__ = fn() => o();
                 $__CTLR_FILE__ = ($resolve_file__fn)(
-                    implode('/',\array_map(fn($k) => \trim($k,'/'), $route_path)),
+                    $__ROUTE_PATH__,
                     $suffix
                 );
             } else {
+                $__ROUTE_PATH__ = null;
                 $__CONTEXT__ = fn() => o();
                 $__CTLR_FILE__ = null;
             }
@@ -1250,8 +1252,8 @@ namespace _ { final class request extends \stdClass implements \ArrayAccess, \Js
             } else {
                 $INIT__EN = false;
                 return (function() {
-                    $route_path = ($_REQUEST->alt_route_path ?? null) 
-                        ? ('('.implode('/',\array_map(fn($k) => \trim($k,'/'), $_REQUEST->alt_route_path)).')')
+                    $route_path = ($_REQUEST->alt_route_path_list ?? null) 
+                        ? ('('.implode('/',\array_map(fn($k) => \trim($k,'/'), $_REQUEST->alt_route_path_list)).')')
                         : ''
                     ;
                     \defined('_\SIG_ABORT') OR \define('_\SIG_ABORT', 0);
@@ -1270,7 +1272,7 @@ namespace _ { final class request extends \stdClass implements \ArrayAccess, \Js
             
             if($INIT__EN){
 
-                if($panel = $route_path[0] ?? null){
+                if($panel = $route_path_list[0] ?? null){
                     
                     if($f = \stream_resolve_include_path("{$panel}/.panel.php")){
                         include $f;
@@ -1299,6 +1301,49 @@ namespace _ { final class request extends \stdClass implements \ArrayAccess, \Js
                         $v && o()->$k;
                     }
                 }
+
+                $inits = [];
+                foreach([$__ROUTE_PATH__] as $path){
+                    
+                    if(!$path){
+                        continue;
+                    }
+                    
+                    $list = [];
+
+                    if(\is_string($path)){
+                        $g = (($path)
+                            ? "{".\array_reduce(\explode('/', $path), function($c, $i){
+                                    static $u;
+                                    if($i){
+                                        $u .= '/'.$i;
+                                        $c .= ','.$u;
+                                    }
+                                    return $c;
+                                })."}"
+                            : ''
+                        )
+                        .'/.ini.php';
+                    
+                        foreach($tsp as $d){
+                            foreach(\glob("{$d}{$g}", GLOB_BRACE) as $f){ 
+                                $list[$f] = \substr($f, \strlen($d));
+                            }
+                        }
+                        
+                        \asort($list);
+                    }
+                    
+                    foreach($list as $f => $v){
+                        $GLOBALS['_TRACE']['Router: Found Init'] = (string) $f;
+                        $inits[] = $f;
+                    }
+                }
+
+                foreach($inits as $f){
+                    include_once $f;
+                }
+                
             }
         }
         #endregion

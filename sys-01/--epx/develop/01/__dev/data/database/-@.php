@@ -59,7 +59,7 @@
                 $this->alert_message = $this->db()->last_error_message();
             }
             
-            \_\view::file_()->o($this)();
+            \_\view('.')->o($this)();
         }
     }
     

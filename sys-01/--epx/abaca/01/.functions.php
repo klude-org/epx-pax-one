@@ -434,6 +434,13 @@ namespace _ { if(!\function_exists(prt::class)){ function prt($o){
     }
     \_\IS_HTML AND print("</pre>");
 }}}
+namespace _ { if(!\function_exists(view::class)){ function view($expr = null){
+    static $I; 
+    return \func_num_args()
+        ? \_\view::_($expr)
+        : ($I ?? ($I = \_\view::_()))
+    ;
+}}}
 #endregion
 # ######################################################################################################################
 #region Misc
@@ -761,8 +768,12 @@ namespace _ { if(!\function_exists(db::class)){ function db($table_name = null) 
                         throw new \PDOException($e->getMessage(), (int)$e->getCode());
                     }
                 } else {
-                    $this->pdo = null;
+                    throw new \PDOException('Database is not defined');
                 }
+            }
+            
+            public function pdo(){
+                return $this->pdo;
             }
             
             public function connect(){
