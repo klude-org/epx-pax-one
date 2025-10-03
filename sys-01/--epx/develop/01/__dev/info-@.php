@@ -15,6 +15,7 @@
         'elapsed' => \number_format((((\defined('_\SIG_END') ? \_\SIG_END : \microtime(true)) - \_\MSTART)),6).'s',
         'tsp' => \explode(PATH_SEPARATOR, \get_include_path()),
         'env' => $_ENV,
+        'request' => $_REQUEST,
         'const' => \get_defined_constants(true)['user'] ?? [],
 
     ],

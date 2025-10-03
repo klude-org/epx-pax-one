@@ -428,11 +428,33 @@ namespace _ { if(!\function_exists(texate::class)){ function texate(mixed $expr,
 }}}
 namespace _ { if(!\function_exists(prt::class)){ function prt($o){
     \_\IS_HTML AND print("<pre>");
-    echo \is_scalar($o) ? $o : \json_encode($o,JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    $json = \is_scalar($o) 
+        ? $o 
+        : \json_encode(
+            $o,
+                JSON_PRETTY_PRINT 
+                | JSON_UNESCAPED_SLASHES 
+                | JSON_INVALID_UTF8_SUBSTITUTE
+                //| JSON_HEX_TAG ^ JSON_HEX_AMP ^ JSON_HEX_APOS ^ JSON_HEX_QUOT
+                | JSON_UNESCAPED_UNICODE 
+            ,
+        )
+    ;
+    echo \_\IS_HTML 
+        ? htmlspecialchars($json, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        : $json
+    ;
     if (\json_last_error() !== JSON_ERROR_NONE) {
         echo \json_encode(["PRT-ERROR" => \json_last_error().": ".\json_last_error_msg()]);
     }
     \_\IS_HTML AND print("</pre>");
+}}}
+namespace _ { if(!\function_exists(view::class)){ function view($expr = null){
+    static $I; 
+    return \func_num_args()
+        ? \_\view::_($expr)
+        : ($I ?? ($I = \_\view::_()))
+    ;
 }}}
 #endregion
 # ######################################################################################################################
@@ -761,8 +783,12 @@ namespace _ { if(!\function_exists(db::class)){ function db($table_name = null) 
                         throw new \PDOException($e->getMessage(), (int)$e->getCode());
                     }
                 } else {
-                    $this->pdo = null;
+                    throw new \PDOException('Database is not defined');
                 }
+            }
+            
+            public function pdo(){
+                return $this->pdo;
             }
             
             public function connect(){

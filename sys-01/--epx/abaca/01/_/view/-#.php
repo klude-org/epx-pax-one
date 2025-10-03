@@ -2,122 +2,131 @@
 
 class view {
     
-    static $WRAPPER_COUNT = 0;
-    static $PLICS = [];
+    private static $WRAPPER_COUNT = 0;
+    private static $PLICS = [];
+    private static $VIEW_STACK = [];
     private static $VARS = [];
     
-    public readonly mixed $OBJ;
-    public readonly \Closure $FN;
-    public ?view $wrapper = null;
-    public ?view $inner = null;
-    public string $inset = '';
-    public array $params = [];
-    public mixed $o;
+    private ?view $WRAPPER = null;
+    private ?view $INNER = null;
+    private string $INSET = '';
+    private array $PARAMS = [];
+    private readonly \Closure $FN;
+    
+    public object $o;
 
     public static function _($expr = null){ 
-        return new static($expr, false);
-    }
-    
-    public static function file_(string|null $expr = ''){ 
-        $file = null;
-        if($expr === ''){
-            if($f = \_\get_caller(-1)['file'] ?? null){
-                if(\is_file($f = \dirname($f)."/-v.php")){
-                    $file = $f;
+        static $I; 
+        if(!\func_num_args()){
+            return $I ?? ($I = new static());
+        } else if($expr instanceof \SplFileInfo){
+            return new static($expr);
+        } else if(\is_string($expr)){
+            if($expr === '.'){
+                if($f = \_\get_caller()['file'] ?? null){
+                    if(\is_file($f = \dirname($f)."/-v.php")){
+                        $file = $f;
+                    }
                 }
-            }
-            //$file = \stream_resolve_include_path("{$_REQUEST->_['panel']}/-v.php");
-        } else if((($expr[1] ?? null) == ':' || ($expr[0] ?? null) == '/')){
-            if(\str_ends_with($expr,'-v.php')){
-                $file = \realpath($expr);
+                //$file = \stream_resolve_include_path("{$_REQUEST->_['panel']}/-v.php");
+            } else if((($expr[1] ?? null) == ':' || ($expr[0] ?? null) == '/')){
+                if(\str_ends_with($expr,'-v.php')){
+                    $file = \realpath($expr);
+                } else {
+                    $file = \realpath("{$expr}-v.php")
+                        ?: \realpath("{$expr}/-v.php")
+                    ;
+                }
             } else {
-                $file = \realpath("{$expr}-v.php")
-                    ?: \realpath("{$expr}/-v.php")
+                if(\str_starts_with($expr, '#/')){
+                    $expr = \substr($expr,2);
+                } else if(\str_starts_with($expr, '#panel/')){
+                    $expr = \trim("{$_REQUEST->_['panel']}".\substr($expr,6),'/');
+                } else if(\str_starts_with($expr, './')){
+                    if($f = \_\get_caller(-1)['file'] ?? null){
+                        $expr = \_\f(\dirname($f))->tsp_path(\substr($expr,1));
+                    }
+                } else {
+                    $expr = "{$_REQUEST->_['panel']}/{$expr}";
+                }
+                $file = \stream_resolve_include_path("{$expr}-v.php")
+                    ?: \stream_resolve_include_path("{$expr}/-v.php")
                 ;
             }
-        } else {
-            if(\str_starts_with($expr, '#/')){
-                $expr = \substr($expr,2);
-            } else if(\str_starts_with($expr, '#panel/')){
-                $expr = \trim("{$_REQUEST->_['panel']}/".\substr($expr,7),'/');
-            } else if(\str_starts_with($expr, '#theme/')){
-                $expr = \trim("_/theme".\substr($expr,7),'/');
-            } else if(\str_starts_with($expr, './')){
-                if($f = \_\get_caller(-1)['file'] ?? null){
-                    $expr = \_\f(\dirname($f))->tsp_path(\substr($expr,2));
-                }
+            if($file){
+                return new static(new \SplFileInfo($file));
             } else {
-                $expr = "{$_REQUEST->_['panel']}/{$expr}";
-            }
-            $file = \stream_resolve_include_path("{$expr}-v.php")
-                ?: \stream_resolve_include_path("{$expr}/-v.php")
-            ;
-        }
-        if($file){
-            return new static($file, true);
+                throw new \Exception("View not found: {$expr}");
+            }            
+        } else if(\is_scalar($expr)){
+            return new static(function() use($expr){
+                echo $expr;
+            });
+        } else if(\is_callable($expr)){
+            return new static($expr);
+        } else if(\is_array($expr)){
+            return new static(function() use($expr){
+                echo '<pre>'.\json_encode(
+                    $expr, 
+                    JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+                ).'<pre>';
+            });
         } else {
-            throw new \Exception("View not found: {$expr}");
+            throw new \Exception("Invalid view expression");
         }
     }
     
-    private function __construct($obj, $byfile){
-        $this->OBJ = $obj;
-        $this->FN = ($byfile)
-            ? function(){
-                $this->params AND \extract($this->params, EXTR_OVERWRITE | EXTR_PREFIX_ALL, 'p__');
-                $__INSET__ = $this->inset;
-                include $this->OBJ;
-            }
-            : function(){
-                $expr = $this->OBJ;
-                if(!$expr && $expr != 0){
-                    echo '';
-                } else if(\is_scalar($expr)){
-                    if(\str_starts_with($expr, '#/')){
-                        static::file_($expr)();
-                    } else {
-                        echo $expr;
-                    }
-                } else if(\is_callable($expr)){
-                    ($expr)();
-                } else if($expr instanceof \SplFileInfo) {
-                    static::file_($expr)();
-                } else if(\is_array($expr)){
-                    echo '<pre>'.\json_encode(
-                        $expr, 
-                        JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
-                    ).'<pre>';
-                }
-            }
-        ;
-        
+    public static function text_(string $text){
+        return new static(function() use($expr){
+            echo $expr;
+        });
     }
     
-    public function params(array $params){
-        $this->params[] = \array_replace($this->params, $params);
-        return $this;
+    private function __construct(callable|\SplFileInfo $fn = null){
+        //$this->o = \func_num_args() ? static::_()->o : new \stdClass();
+        if($fn instanceof \SplFileInfo){
+            $__FILE__ = $fn;
+            $this->FN = (function($__INSET__,$__VIEW__) use($__FILE__){
+                \extract($__VIEW__->params(), EXTR_OVERWRITE | EXTR_PREFIX_ALL, 'p__');
+                include $__FILE__;
+            })->bindTo(\_::_(),\_::class);
+        } else {
+            $this->FN = $fn ?? fn() => null;
+        }
     }
-
-    public function o($o){
-        $this->o = $o;
-        return $this;
-    }
-    
     
     public function __invoke($return = false){
+        return $this->prt($return);
+    }
+
+    public function params(array $params = null){
+        if(\func_num_args()){
+            $this->PARAMS[] = \array_replace($this->PARAMS, $params);
+            return $this;
+        } else {
+            return $this->PARAMS;
+        }
+    }
+    
+    public function prt($return = false){  
         $output = '';
         try{
             \ob_start(function($view_text) use(&$output){
                 $output .= $view_text;
             });
-            ($this->FN)();
+            try{
+                \array_push(static::$VIEW_STACK, $this);
+                ($this->FN)($this->INSET, $this);
+            } finally {
+                \array_pop(static::$VIEW_STACK);
+            }
             \ob_clean();
-            if($this->wrapper){
+            if($this->WRAPPER){
                 try{
-                    $this->wrapper->inner = $this;
-                    $this->wrapper->inset = $output;
+                    $this->WRAPPER->INNER = $this;
+                    $this->WRAPPER->INSET = $output;
                     $output = null;
-                    ($this->wrapper)();
+                    $this->WRAPPER->prt();
                 } finally {
                     static::$WRAPPER_COUNT --;
                 }
@@ -131,24 +140,53 @@ class view {
             echo $output;
         }
     } 
-
-    public function wrap_in($expr, array $params = []){
-        if($this->wrapper){
+    
+    public static function current_view(){
+        return static::$VIEW_STACK[0] ?? null;
+    }
+    
+    public static function wrap_in(string $expr, array $params = []){
+        if(!static::$VIEW_STACK){
+            throw new \Exception("Cannot use wrapper outside a view structure");
+        }
+        if(static::$VIEW_STACK[0]->WRAPPER){
             throw new \Exception("Duplicate Wrapper Settings");
         }
         if(static::$WRAPPER_COUNT > 10){
             throw new \Exception("View stack overflow");
         }
         static::$WRAPPER_COUNT++;
-        $this->params = $params;
-        $this->wrapper = static::file_($expr);
-        return $this;
+        static::$VIEW_STACK[0]->PARAMS = $params;
+        return static::$VIEW_STACK[0]->WRAPPER = static::_($expr);
     }
     
-    public function head($x){ static::plic('head', $x); return $this; }
-    public function tail($x){ static::plic('tail', $x); return $this; }
-    public function style($x){ static::plic('style', $x); return $this; }
-    public function script($x){ static::plic('script', $x); return $this; }
+    public static function feature(string $feature, &$store = null){
+        return $store = \_\theme::_()->$feature;
+    }
+    
+    public static function head($x){ 
+        static::plic('head', $x);
+    }
+    
+    public static function tail($x){ 
+        static::plic('tail', $x); 
+    }
+    
+    public static function style($x, $once = false){ 
+        if($once){
+            if(static::once($x)){ static::plic('style', $x); }
+        } else {
+            static::plic('style', $x);
+        }
+    }
+    
+    public static function script($x, $once = false){ 
+        if($once){
+            if(static::once($x)){ static::plic('script', $x); }
+        } else {
+            static::plic('script', $x);
+        }
+    }
     
     public static function once($key){
         static $keys = [];
@@ -170,10 +208,7 @@ class view {
         }
     }
     
-    public function style_once($x){ if(static::once($x)){ static::plic('style', $x); } return $this; }
-    public function script_once($x){ if(static::once($x)){ static::plic('script', $x); } return $this; }
-    
-    public function plugin($expr, $attribs = []){
+    public static function plugin($expr, $attribs = []){
         $type = '';
         $url = '';
         if(!$expr){
@@ -276,41 +311,6 @@ class view {
         }
     }
     
-    public static function var($n, $default = null){
-        if(func_num_args() > 1){
-            if(\is_scalar($n)){
-                return static::$VARS[$n] ?? $default;
-            } else if(\is_array($n) || \is_object($n)){
-                foreach($n as $k => $v){
-                    static::$VARS[$k] = $v;
-                }
-            } else {
-                throw new \Exception("Invalid var parameter \$n");
-            }
-        } else {
-            return static::$VARS[$n] ?? null;
-        }
-    }
-    
-    public static function on_action(string $action, callable $f){
-        if($action = $_REQUEST['--action'] ?? null){
-            ($f)();
-            exit;
-        }
-    }
-   
-    public static function on_view($type, callable $f){
-        ($f)();
-    }
-    
-    public static function respond_json($response){
-        while(ob_get_level() > \_\OB_OUT){ @ob_end_clean(); }
-        header('Content-Type: application/json');
-        echo json_encode($response);
-        exit();
-    }
-    
-    
     public static function render(mixed $expr, bool|array $params = [], bool $texate = false){
         if(\is_bool($params)){
             $texate = $params;
@@ -363,9 +363,15 @@ class view {
         return static::render($expr, $params, true);
     }
     
-    public static function prt(){ ?>
-        
-    <?php }
+    public static function on_action(string $action, callable $f){
+        if($action = $_REQUEST['--action'] ?? null){
+            ($f)();
+            exit;
+        }
+    }
     
+    public static function on_view($type, callable $f){
+        ($f)();
+    }    
     
 }

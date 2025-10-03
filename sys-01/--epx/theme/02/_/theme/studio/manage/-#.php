@@ -12,7 +12,7 @@ class manage {
         header('Vary: Sec-Fetch-Dest', false);
 
         if($is_iframe){
-            \_\view::file_("#")();
+            \_\view::_("#")();
         } else {
             include '-v.php';
         }

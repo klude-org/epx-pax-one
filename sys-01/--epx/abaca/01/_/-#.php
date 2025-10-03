@@ -4,15 +4,25 @@ final class _ extends \stdClass implements \ArrayAccess, \JsonSerializable {
     
     private static $_;
     
-    public array $vars = [];
     public array $trace;
+    public object $fn;
     
     public static function _() { static $I; return $I ?? ($I = new static); }
     
-    private function __construct(){  }
+    private function __construct(){ 
+        $this->fn = new \stdClass; 
+    }
     
     public function __get($n){
-        static $N =[];  return $N[$k = \strtolower($n)] ?? ($N[$k] = (static::class.'\\'.$k)::_());
+        //static $N =[];  return $N[$k = \strtolower($n)] ?? ($N[$k] = (static::class.'\\'.$k)::_());
+        return $this->$n = \class_exists($c = static::class.'\\'.$n)
+            ? $c::_()
+            : null
+        ;
+    }
+    
+    public function __call($m,$args){
+        return ($this->fn->$m)(...$args);
     }
     
     public function offsetSet($n, $v):void { 
@@ -114,4 +124,57 @@ final class _ extends \stdClass implements \ArrayAccess, \JsonSerializable {
         }
     }
     
+    public static function vars(string|array $n = null, mixed $args = null){
+        static $V = [];
+        if(($count = \func_num_args()) > 1){
+            if(\is_scalar($n)){
+                $V[$n] = $args;
+            } else {
+                throw new \Exception('Invalid Key Type');
+            }
+        } else if($count) {
+            if(\is_scalar($n)){
+                if($v = $V[$n] ?? null){
+                    if(\is_callable($v)){
+                        return ($v)();
+                    } else {
+                        return $v;
+                    }
+                }
+            } else if(\is_array($n) || \is_object($n)){
+                foreach($n as $k => $v){
+                    static::vars($k, $v);
+                }
+            } else {
+                throw new \Exception("Invalid var parameter \$n");
+            }
+            
+        } else {
+            return $V;
+        }
+    }    
+    
+    public static function view($expr = null){
+        static $I; 
+        return \func_num_args()
+            ? \_\view::_($expr)
+            : ($I ?? ($I = \_\view::_()))
+        ;
+    }
+    
+    public static function db(string $expr = null){
+        static $I = []; 
+        return \func_num_args()
+            ? ($I[$expr ?? ''] ?? ($I[$expr ?? ''] = \_\db::_($expr)))
+            : ($I[''] ?? ($I[''] = \_\db::_()))
+        ;
+    }
+    
+    public static function respond_json($response){
+        while(ob_get_level() > \_\OB_OUT){ @ob_end_clean(); }
+        header('Content-Type: application/json');
+        echo json_encode($response);
+        exit();
+    }    
+
 }
