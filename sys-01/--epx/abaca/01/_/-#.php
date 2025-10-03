@@ -4,7 +4,6 @@ final class _ extends \stdClass implements \ArrayAccess, \JsonSerializable {
     
     private static $_;
     
-    public array $vars = [];
     public array $trace;
     public object $fn;
     
@@ -15,7 +14,11 @@ final class _ extends \stdClass implements \ArrayAccess, \JsonSerializable {
     }
     
     public function __get($n){
-        static $N =[];  return $N[$k = \strtolower($n)] ?? ($N[$k] = (static::class.'\\'.$k)::_());
+        //static $N =[];  return $N[$k = \strtolower($n)] ?? ($N[$k] = (static::class.'\\'.$k)::_());
+        return $this->$n = \class_exists($c = static::class.'\\'.$n)
+            ? $c::_()
+            : null
+        ;
     }
     
     public function __call($m,$args){

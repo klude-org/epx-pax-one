@@ -19,7 +19,9 @@ class view {
         static $I; 
         if(!\func_num_args()){
             return $I ?? ($I = new static());
-        } else if(\is_string($expr) || $expr instanceof \SplFileInfo){
+        } else if($expr instanceof \SplFileInfo){
+            return new static($expr);
+        } else if(\is_string($expr)){
             if($expr === '.'){
                 if($f = \_\get_caller()['file'] ?? null){
                     if(\is_file($f = \dirname($f)."/-v.php")){
@@ -39,9 +41,7 @@ class view {
                 if(\str_starts_with($expr, '#/')){
                     $expr = \substr($expr,2);
                 } else if(\str_starts_with($expr, '#panel/')){
-                    $expr = \trim("{$_REQUEST->_['panel']}/".\substr($expr,6),'/');
-                } else if(\str_starts_with($expr, '#theme/')){
-                    $expr = \trim("_/theme".\substr($expr,6),'/');
+                    $expr = \trim("{$_REQUEST->_['panel']}".\substr($expr,6),'/');
                 } else if(\str_starts_with($expr, './')){
                     if($f = \_\get_caller(-1)['file'] ?? null){
                         $expr = \_\f(\dirname($f))->tsp_path(\substr($expr,1));
@@ -54,12 +54,7 @@ class view {
                 ;
             }
             if($file){
-                $__FILE__ = $file;
-                $fn = (function($__INSET__,$__VIEW__) use($__FILE__){
-                    \extract($__VIEW__->params(), EXTR_OVERWRITE | EXTR_PREFIX_ALL, 'p__');
-                    include $__FILE__;
-                })->bindTo(\_::_(),\_::class);
-                return new static($fn);
+                return new static(new \SplFileInfo($file));
             } else {
                 throw new \Exception("View not found: {$expr}");
             }            
@@ -87,9 +82,17 @@ class view {
         });
     }
     
-    private function __construct(callable $fn = null){
+    private function __construct(callable|\SplFileInfo $fn = null){
         //$this->o = \func_num_args() ? static::_()->o : new \stdClass();
-        $this->FN = $fn ?? fn() => null;
+        if($fn instanceof \SplFileInfo){
+            $__FILE__ = $fn;
+            $this->FN = (function($__INSET__,$__VIEW__) use($__FILE__){
+                \extract($__VIEW__->params(), EXTR_OVERWRITE | EXTR_PREFIX_ALL, 'p__');
+                include $__FILE__;
+            })->bindTo(\_::_(),\_::class);
+        } else {
+            $this->FN = $fn ?? fn() => null;
+        }
     }
     
     public function __invoke($return = false){
